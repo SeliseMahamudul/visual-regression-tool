@@ -4,6 +4,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { runComparison, toApiUrls } from '../services/comparisonRunner';
+import { validateExpectationRules } from '../services/textProvider';
+import { ExpectationRules } from '../types';
 
 const router = Router();
 
@@ -70,6 +72,24 @@ router.post(
         });
       }
 
+      // FR-60/FR-62: expectations arrive as a JSON string in a multipart text
+      // field (appended AFTER the files, like every other text field — see
+      // CLAUDE.md gotcha #2). Parse defensively: a malformed value must degrade
+      // to "no expectations", never fail a comparison the user has already paid
+      // Gemini quota for. validateExpectationRules itself never throws; the
+      // try/catch is for JSON.parse.
+      let expectations: ExpectationRules | undefined;
+      if (req.body.expectations) {
+        try {
+          expectations = validateExpectationRules(JSON.parse(req.body.expectations));
+        } catch (err) {
+          console.warn(
+            `[${runId}] Ignoring malformed expectations payload:`,
+            (err as Error)?.message
+          );
+        }
+      }
+
       // Promote the staged uploads into uploads/{run_id}/ using the layout
       // documented in REQUIREMENTS.md §10.1.
       const uploadDir = path.join(UPLOADS_DIR, runId);
@@ -97,6 +117,7 @@ router.post(
         githubOwner,
         githubRepo,
         prNumber,
+        expectations,
       });
 
       return res.json({

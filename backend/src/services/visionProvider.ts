@@ -6,8 +6,8 @@
  */
 import axios from 'axios';
 import * as fs from 'fs';
-import { AIClassification } from '../types';
-import { CLASSIFICATION_PROMPT, contextLine } from './visionPrompt';
+import { AIClassification, ExpectationRules } from '../types';
+import { buildClassificationPrompt, contextLine } from './visionPrompt';
 import { withRetry } from './retry';
 
 export interface VisionRequest {
@@ -15,6 +15,8 @@ export interface VisionRequest {
   afterPath: string;
   diffPath: string;
   diffPercentage: number;
+  /** FR-55: expectation rules for THIS comparison only. Optional. */
+  expectations?: ExpectationRules;
 }
 
 /** A provider takes the three images and returns the raw model text. */
@@ -58,7 +60,9 @@ const geminiProvider: VisionProvider = async (req) => {
     contents: [
       {
         parts: [
-          { text: CLASSIFICATION_PROMPT },
+          // FR-55: built per request so this run's expectation rules (and a
+          // VR_PROJECT_CONTEXT set after module load) are actually included.
+          { text: buildClassificationPrompt(req.expectations) },
           inline(req.beforePath),
           inline(req.afterPath),
           inline(req.diffPath),
@@ -106,6 +110,11 @@ const geminiProvider: VisionProvider = async (req) => {
 // local demos and CI smoke runs where no API key is available. It never calls
 // the network, so it can never be mistaken for a real AI verdict — its
 // explanations say so explicitly.
+//
+// It ignores req.expectations entirely and always will: it is a pure function
+// of diffPercentage, and that determinism is what the integration suite relies
+// on. Proving that expectations change a verdict therefore needs a real vision
+// model — see TEST_PLAN §5.3 / test/probe/expectations-probe.mjs.
 
 const mockProvider: VisionProvider = async (req) => {
   const pct = req.diffPercentage;

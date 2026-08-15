@@ -1,6 +1,7 @@
-import { AIClassification, ClassificationResult, Severity } from '../types';
+import { AIClassification, ClassificationResult, ExpectationRules, Severity } from '../types';
 import { getProvider, VisionRequest } from './visionProvider';
 import { withRetry, isRetryable } from './retry';
+import { extractJsonObject } from './jsonFromModel';
 
 // The prompt itself lives in visionPrompt.ts (NFR-14) and the transport in
 // visionProvider.ts (FR-22 / NFR-15). This module owns retry policy (FR-21),
@@ -17,27 +18,12 @@ const VALID_SEVERITIES: Severity[] = ['critical', 'medium', 'low', 'none'];
 
 /**
  * Models occasionally wrap JSON in markdown fences or add a preamble despite
- * being told not to. Strip fences, then fall back to the outermost {...} span.
+ * being told not to. The fence-stripping/fallback logic now lives in
+ * jsonFromModel.ts so the chat extraction route shares it (§4.2 of
+ * CHATBOT_IMPLEMENTATION_PLAN) — this function's behaviour is unchanged.
  */
 export function parseClassificationResponse(rawText: string): Omit<AIClassification, 'diff_percentage'> {
-  const cleaned = rawText
-    .replace(/```json\s*/gi, '')
-    .replace(/```/g, '')
-    .trim();
-
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch {
-    const start = cleaned.indexOf('{');
-    const end = cleaned.lastIndexOf('}');
-    if (start === -1 || end <= start) {
-      throw new Error(
-        `AI returned a non-JSON response: ${cleaned.slice(0, 200) || '(empty)'}`
-      );
-    }
-    parsed = JSON.parse(cleaned.slice(start, end + 1));
-  }
+  const parsed = extractJsonObject(rawText);
 
   const classification = parsed.classification as ClassificationResult;
   const severity = parsed.severity as Severity;
@@ -63,10 +49,18 @@ export async function classifyWithGemini(
   beforePath: string,
   afterPath: string,
   diffPath: string,
-  diffPercentage: number
+  diffPercentage: number,
+  /** FR-55: per-comparison expectation rules, optional and always additive. */
+  expectations?: ExpectationRules
 ): Promise<AIClassification> {
   const provider = getProvider();
-  const request: VisionRequest = { beforePath, afterPath, diffPath, diffPercentage };
+  const request: VisionRequest = {
+    beforePath,
+    afterPath,
+    diffPath,
+    diffPercentage,
+    expectations,
+  };
 
   const rawText = await withRetry(() => provider(request), {
     onRetry: (attempt, delayMs, error) => {

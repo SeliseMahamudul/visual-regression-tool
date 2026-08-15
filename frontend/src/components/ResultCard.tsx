@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { TestResult } from '../types';
 import { ClassificationBadge } from './ClassificationBadge';
 import { ScreenshotViewer } from './ScreenshotViewer';
-import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
+import { ChevronDown, ChevronUp, ExternalLink, MessageSquare } from 'lucide-react';
 
 interface Props {
   result: TestResult;
@@ -87,6 +87,50 @@ export const ResultCard: React.FC<Props> = ({ result }) => {
               <p className="text-slate-700 text-sm leading-relaxed">{classification.recommended_action}</p>
             </div>
           </div>
+
+          {/* FR-61: the rules in force when this verdict was produced. Closes
+              the audit loop — six weeks later, "why was this INTENTIONAL_CHANGE?"
+              is answerable from the card rather than a chat session nobody saved. */}
+          {result.expectations && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="mb-2 flex items-center gap-2">
+                <MessageSquare size={13} className="text-blue-900" />
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Expectations applied
+                </p>
+              </div>
+              {result.expectations.summary && (
+                <p className="mb-2 text-sm leading-relaxed text-slate-700">
+                  {result.expectations.summary}
+                </p>
+              )}
+              <div className="space-y-2">
+                {(
+                  [
+                    ['expected', 'Expected', 'bg-green-50 text-green-700 border-green-200'],
+                    ['unexpected', 'Must not happen', 'bg-red-50 text-red-700 border-red-200'],
+                    ['ignore', 'Dynamic', 'bg-blue-50 text-blue-700 border-blue-200'],
+                  ] as const
+                ).map(([key, label, chip]) =>
+                  result.expectations && result.expectations[key].length ? (
+                    <div key={key}>
+                      <p className="mb-1 text-xs text-slate-500">{label}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {result.expectations[key].map((rule, i) => (
+                          <span
+                            key={`${key}-${i}`}
+                            className={`rounded border px-2 py-0.5 text-xs ${chip}`}
+                          >
+                            {rule}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Screenshot viewer */}
           <ScreenshotViewer

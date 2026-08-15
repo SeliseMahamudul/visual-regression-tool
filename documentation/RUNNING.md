@@ -295,7 +295,8 @@ always exact and always available, even when the AI call fails.
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `POST` | `/api/compare` | Main pipeline. Multipart: `before`, `after`, `run_id`, `page_name`, `auto_file_bugs`, plus optional Jira/GitHub fields |
+| `POST` | `/api/compare` | Main pipeline. Multipart: `before`, `after`, `run_id`, `page_name`, `auto_file_bugs`, plus optional Jira/GitHub fields and an optional `expectations` JSON string (FR-60) |
+| `POST` | `/api/chat` | JSON `{ messages }` → `{ reply, rules }`. Turns plain English into `ExpectationRules` (FR-52/FR-53). Has its **own** rate-limit bucket, 20/min |
 | `GET` | `/api/compare/results/:runId` | Every stored result for a run |
 | `GET` | `/api/screenshots/:runId/:type` | Serves `before`, `after`, or `diff` as PNG |
 | `GET` | `/api/integrations/status` | Live health of Gemini, Jira, GitHub |
@@ -465,6 +466,42 @@ All of these live in `backend/.env`.
 | `JIRA_EMAIL` | | — | Your Atlassian account email |
 | `JIRA_API_TOKEN` | | — | From id.atlassian.com → API tokens |
 | `GITHUB_TOKEN` | | — | PAT with `repo` scope |
+| `CHAT_PROVIDER` | | `mock` | Expectation extraction: `mock`, `groq`, or `ollama` — see below |
+| `GROQ_API_KEY` | | — | Free tier, no card: <https://console.groq.com/keys> |
+| `GROQ_MODEL` | | `llama-3.3-70b-versatile` | Pinned, not a `-latest` alias |
+| `OLLAMA_BASE_URL` | | `http://localhost:11434` | Requires `ollama serve` running separately |
+| `OLLAMA_MODEL` | | `llama3.2` | Any chat model your Ollama has pulled |
+
+### The expectation chatbot (FR-52…FR-62)
+
+Before running a comparison, describe in the chat panel what you changed on purpose and what must
+not change. The backend turns that into structured rules, shows them back for you to confirm or
+correct, and injects them into the vision prompt **for that one comparison** — they are not saved as
+a reusable profile. The rules are stored with the result JSON so the verdict stays auditable.
+
+**Rules bias the classification; they never suppress a finding.** The prompt explicitly tells the
+model to still report every change it sees, including ones you called intentional, and to override
+you (with lowered confidence) when the pixels disagree with what you said.
+
+The chat model is a **separate provider from the vision model**, on purpose: the Gemini free tier is
+15 RPM / 1,500 RPD, and chat is far chattier than the upload flow. Chat traffic must never starve
+classification.
+
+- `CHAT_PROVIDER=mock` (default) — offline keyword extraction, no key, no network. Crude by design;
+  it exists so the whole feature runs on a fresh clone.
+- `CHAT_PROVIDER=groq` — free tier, no credit card. Set `GROQ_API_KEY`.
+- `CHAT_PROVIDER=ollama` — fully local. Requires `ollama serve` running separately.
+
+`backend/src/services/textProvider.ts` is the single file to change to swap the chat model, mirroring
+`visionProvider.ts`. The extraction prompt is isolated in `backend/src/services/chatPrompt.ts`.
+
+To prove the feature actually shifts a verdict, run the A/B probe against a **real** vision model
+(the mock provider ignores expectations by design):
+
+```powershell
+cd backend; $env:VISION_PROVIDER='gemini'; npm run build; npm start   # separate terminal
+node test/probe/expectations-probe.mjs
+```
 
 ### Running without a Gemini key
 

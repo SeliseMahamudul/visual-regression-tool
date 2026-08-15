@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, X, Settings } from 'lucide-react';
 import { CompareFormData } from '../types';
+import { ExpectationChat } from './ExpectationChat';
 
 interface DropZoneProps {
   label: string;
@@ -111,6 +112,15 @@ export const UploadForm: React.FC<Props> = ({ onSubmit, loading }) => {
           onClear={() => setForm({ ...form, after: null })}
         />
       </div>
+
+      {/* FR-52: expectation chat. Sits below the drop zones so it is easy to
+          find but never blocks the fast path — canSubmit is unchanged, because
+          expectations are always optional. */}
+      <ExpectationChat
+        rules={form.expectations}
+        onRulesChange={(expectations) => setForm({ ...form, expectations })}
+        disabled={loading}
+      />
 
       {/* Advanced / integrations */}
       <div>
