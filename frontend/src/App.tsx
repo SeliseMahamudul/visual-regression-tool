@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import { UploadForm } from './components/UploadForm';
 import { ResultCard } from './components/ResultCard';
-import { compareScreenshots } from './api/client';
+import { compareScreenshots, getIntegrationStatus } from './api/client';
 import { CompareFormData, TestResult } from './types';
-import { Eye, Github, Zap } from 'lucide-react';
+import { Eye, Github, Zap, ZapOff } from 'lucide-react';
 
 // Simple id shim — avoids pulling `uuid` in just for a client-side run id
 function generateId(): string {
@@ -14,6 +14,14 @@ function generateId(): string {
 export default function App() {
   const [results, setResults] = useState<TestResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [aiReady, setAiReady] = useState<boolean | null>(null);
+
+  // FR-44: reflect the real Gemini health, not a hardcoded badge.
+  useEffect(() => {
+    getIntegrationStatus()
+      .then((status) => setAiReady(!!status.gemini))
+      .catch(() => setAiReady(false));
+  }, []);
 
   const handleCompare = async (data: CompareFormData) => {
     if (!data.before || !data.after) return;
@@ -78,9 +86,15 @@ export default function App() {
             >
               <Github size={20} />
             </a>
-            <div className="flex items-center gap-1.5 text-xs bg-green-900/30 text-green-400 border border-green-800 px-2.5 py-1.5 rounded-full">
-              <Zap size={11} />
-              AI Ready
+            <div
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full border ${
+                aiReady
+                  ? 'bg-green-900/30 text-green-400 border-green-800'
+                  : 'bg-slate-800/50 text-slate-400 border-slate-700'
+              }`}
+            >
+              {aiReady ? <Zap size={11} /> : <ZapOff size={11} />}
+              {aiReady === null ? 'Checking AI…' : aiReady ? 'AI Ready' : 'AI Unavailable'}
             </div>
           </div>
         </div>

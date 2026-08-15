@@ -1,9 +1,16 @@
 # Visual Regression AI Tool — Project Requirements & Plan
 
-**Document Version:** 1.0  
-**Last Updated:** August 2026  
+**Document Version:** 1.1  
+**Last Updated:** 15 August 2026  
 **Project Type:** Internal QA Engineering Tool  
-**Status:** Planning Phase
+**Status:** v1.0 delivered · v1.1 scope approved, implementation pending
+
+> **v1.1 changelog.** Adds two capabilities and the requirements that govern them:
+> **§3.8 Expectation Chatbot** (FR-52–FR-62) and **§3.9 Live Two-Environment Comparison**
+> (FR-63–FR-75), plus NFR-16–NFR-18 and SEC-10–SEC-13. Implementation specs live in
+> `CHATBOT_IMPLEMENTATION_PLAN.md` (repo root) and `documentation/WEB_APP_REGRESSION_PLAN.md`;
+> verification lives in `documentation/TEST_PLAN.md`. §12 has been updated to reflect the test suite
+> that now exists.
 
 ---
 
@@ -24,6 +31,7 @@
 13. [Milestones & Delivery Plan](#13-milestones--delivery-plan)
 14. [Risks & Mitigations](#14-risks--mitigations)
 15. [Definition of Done](#15-definition-of-done)
+16. [Related Documents](#16-related-documents)
 
 ---
 
@@ -40,12 +48,18 @@ An AI-powered visual regression platform that:
 - Auto-files confirmed bugs to **Jira** and **GitHub Issues**
 - Runs on every Pull Request via **GitHub Actions**
 - Provides a **React dashboard** for manual reviews
+- **(v1.1)** Lets the QA engineer state, in plain English, which changes are expected — so the AI
+  stops flagging deliberate redesigns as bugs
+- **(v1.1)** Opens two environments as live, interactive panes inside the dashboard, so a page behind
+  a login can be compared without producing screenshots by hand
 
 ### Goals
 - Reduce false positive visual alerts by 80%
 - Eliminate manual screenshot comparison from the QA workflow
 - Automatically file bug tickets with screenshot evidence attached
 - Integrate into the existing CI/CD pipeline with zero developer friction
+- **(v1.1)** Make ad-hoc comparison of two running environments a one-click operation, including
+  pages that require authentication
 
 ---
 
@@ -163,6 +177,74 @@ An AI-powered visual regression platform that:
 
 ---
 
+### 3.8 Expectation Chatbot (v1.1)
+
+Implementation spec: `CHATBOT_IMPLEMENTATION_PLAN.md` (repo root).
+
+Addresses risk **R-02** directly. Before v1.1 the only way to give the vision model project context
+was the global `VR_PROJECT_CONTEXT` env var, read once at process start — so "we deliberately
+restyled the header this sprint" required editing `.env` and restarting the backend, and applied to
+every page of every run.
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| FR-52 | The dashboard MUST provide a chat interface where the user describes expected and unexpected UI changes in natural language | Must Have |
+| FR-53 | The system MUST convert the user's natural-language description into a structured `ExpectationRules` object (`expected`, `unexpected`, `ignore`, `summary`, `raw`) | Must Have |
+| FR-54 | The system MUST display the extracted rules back to the user for confirmation before they are applied | Must Have |
+| FR-55 | The extracted rules MUST be injected into the vision classification prompt for that comparison only | Must Have |
+| FR-56 | Expectation rules MUST bias classification toward `INTENTIONAL_CHANGE`, and MUST NOT suppress, hide, or omit any detected change | Must Have |
+| FR-57 | The chat text model MUST be a separate, independently configurable provider from the vision model | Must Have |
+| FR-58 | The chat provider MUST be swappable by changing a single service file (mirrors FR-22 / NFR-15) | Must Have |
+| FR-59 | The system MUST work fully offline with `CHAT_PROVIDER=mock`, requiring no API key | Must Have |
+| FR-60 | The rules in force for a run MUST be persisted with that run's result JSON for audit | Must Have |
+| FR-61 | The dashboard MUST display which expectation rules were in force when showing a result | Should Have |
+| FR-62 | A malformed, oversized, or hostile `expectations` payload MUST NOT fail the comparison | Must Have |
+
+> **FR-56 is a safety requirement, not a quality one.** An implementation that silently drops changes
+> the user called "expected" would let a QA engineer bury a real regression by describing it
+> approximately — strictly worse than not having the feature. Rules influence *classification*; they
+> never remove a finding from the report. Where the evidence contradicts what the user stated, the
+> model is instructed to say so and lower its confidence.
+
+**Scope boundaries.** Instructions are per-comparison only: no saved profiles, no global rule set, no
+cross-run persistence of conversations, and no feedback-loop learning. The chat model is deliberately
+separate from the vision model so chat traffic cannot consume the Gemini free-tier budget
+(15 RPM / 1,500 RPD) that classification depends on.
+
+---
+
+### 3.9 Live Two-Environment Comparison (v1.1)
+
+Implementation spec: `documentation/WEB_APP_REGRESSION_PLAN.md`.
+
+Addresses risk **R-03** directly. Before v1.1, comparing a page behind a login was impossible: the
+dashboard required screenshots produced elsewhere, and the Playwright CLI took a fixed list of paths
+and could not authenticate.
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| FR-63 | The dashboard MUST accept two URLs and open both as live, interactive panes embedded in the dashboard | Must Have |
+| FR-64 | Each pane MUST forward the user's mouse, keyboard, and scroll input to its remote page | Must Have |
+| FR-65 | The two panes MUST navigate fully independently — no mirroring of URLs or interactions | Must Have |
+| FR-66 | The two panes MUST use isolated browser contexts so cookies, storage, and sessions never leak between environments | Must Have |
+| FR-67 | Each pane MUST provide a URL bar with back, forward, reload, and stop | Must Have |
+| FR-68 | A single user action MUST capture both panes and run the existing diff + AI classification pipeline | Must Have |
+| FR-69 | Live comparison results MUST render through the existing result card and screenshot viewer | Must Have |
+| FR-70 | Each capture MUST use a fresh run id so earlier comparisons are never overwritten | Must Have |
+| FR-71 | The system MUST support optional HTTP basic auth credentials per pane (supersedes FR-08 for live mode) | Should Have |
+| FR-72 | JavaScript dialogs (`alert`, `confirm`, `prompt`, `beforeunload`) MUST be surfaced to the user, not auto-dismissed | Must Have |
+| FR-73 | Pop-up windows opened by the page (SSO / identity provider flows) MUST be adopted into the originating pane | Must Have |
+| FR-74 | A live session MUST survive a dashboard reload without losing authenticated state | Should Have |
+| FR-75 | Idle sessions MUST be reaped, and the number of concurrent live sessions MUST be capped | Must Have |
+
+**Scope boundaries.** Live mode is a *parallel* capture strategy: the Playwright CLI service and the
+CI pipeline are unchanged, and credentials are never stored — the user types them into the pane, and
+nothing is persisted or logged. Known limitations to be documented rather than worked around: native
+`<select>` dropdowns, date pickers, and file-choosers do not render in headless Chromium and are out
+of scope for v1.1.
+
+---
+
 ## 4. Non-Functional Requirements
 
 ### 4.1 Performance
@@ -174,6 +256,9 @@ An AI-powered visual regression platform that:
 | NFR-03 | Playwright screenshot capture time | < 30 seconds per page (including page load) |
 | NFR-04 | Full pipeline for 5 pages end-to-end | < 3 minutes |
 | NFR-05 | Frontend dashboard initial load time | < 2 seconds |
+| NFR-16 | Live pane input round-trip latency (v1.1) | < 150 ms perceived |
+| NFR-17 | Live pane frame rate while interacting (v1.1) | ≥ 15 fps |
+| NFR-18 | CPU and bandwidth consumed by an **idle** live pane (v1.1) | ~0 — push-based frames only |
 
 ### 4.2 Reliability
 
@@ -199,6 +284,10 @@ An AI-powered visual regression platform that:
 | NFR-13 | All code MUST be written in TypeScript with strict mode enabled |
 | NFR-14 | The AI prompt in `aiClassification.ts` MUST be clearly separated and documented for easy tuning |
 | NFR-15 | The vision AI provider MUST be swappable by changing a single service file |
+
+> **NFR-14 note (v1.1):** the prompt now lives in `visionPrompt.ts` and, once FR-55 lands, is built
+> by `buildClassificationPrompt(expectations?)` rather than being a module-level constant.
+> Environment variables MUST be read at call time, never at module load — see `CLAUDE.md`.
 
 ---
 
@@ -234,6 +323,47 @@ An AI-powered visual regression platform that:
        │  GitHub REST API        │
        └─────────────────────────┘
 ```
+
+### 5.1 v1.1 additions
+
+Neither new capability changes the pipeline below the capture step: both feed the **same**
+diff → classify → file sequence, which is extracted into a shared `runComparison()` so the HTTP
+route and the live session invoke identical logic.
+
+```
+   ┌──────────────────────────────────────────────────────────────────┐
+   │  React Dashboard  :5173                                          │
+   │                                                                  │
+   │  ┌── Upload mode ──────────┐   ┌── Live mode (v1.1) ──────────┐  │
+   │  │ drag & drop two PNGs    │   │  ┌─ pane ─┐   ┌─ pane ─┐     │  │
+   │  │ + Expectation Chatbot   │   │  │ STAGE  │   │  DEV   │     │  │
+   │  │   (FR-52…FR-62)         │   │  │ live   │   │ live   │     │  │
+   │  └──────────┬──────────────┘   │  └────────┘   └────────┘     │  │
+   │             │                  │     [ CAPTURE & COMPARE ]    │  │
+   │             │                  └──────────────┬───────────────┘  │
+   └─────────────┼─────────────────────────────────┼──────────────────┘
+        POST /api/compare                   Socket.IO  /live
+        POST /api/chat                   (frames out, input in)
+                 │                                 │
+   ┌─────────────▼─────────────────────────────────▼──────────────────┐
+   │  Node.js Backend  :4000  (bound to 127.0.0.1 — SEC-11)           │
+   │                                                                  │
+   │   textProvider.ts          live/  ── Playwright (headless)       │
+   │   (groq│ollama│mock)         browserPool · session · pane         │
+   │        │                     CDP Page.startScreencast            │
+   │        │                            │                            │
+   │        └──────────► comparisonRunner.runComparison() ◄───────────┤
+   │                     pixelDiff → aiClassification → Jira/GitHub   │
+   └──────────────────────────────────────────────────────────────────┘
+```
+
+Key architectural constraints:
+
+- The live browser runs **inside the existing backend process** (`backend/src/live/`), not a fourth
+  service, because the capture step calls the diff and classification services directly.
+- `playwright-service/` — the CI capture CLI — is **unchanged**. Live mode is additive.
+- The chat model and the vision model are **separate providers** with separate credentials and
+  separate quotas (FR-57).
 
 ---
 
@@ -313,6 +443,25 @@ An AI-powered visual regression platform that:
 | `GITHUB_TOKEN` | Optional | github.com/settings/tokens (needs `repo` scope) |
 | `PORT` | Optional | Default: 4000 |
 | `FRONTEND_URL` | Optional | Default: http://localhost:5173 |
+| `VISION_PROVIDER` | Optional | `gemini` (default) or `mock` for offline runs |
+| `GEMINI_MODEL` | Optional | Override when the pinned model is retired — see `CLAUDE.md` |
+
+#### v1.1 additions
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `CHAT_PROVIDER` | Optional | `mock` (default, offline) · `groq` · `ollama` (FR-57/FR-59) |
+| `GROQ_API_KEY` | Optional | Free tier, no card: console.groq.com/keys |
+| `GROQ_MODEL` | Optional | Pin explicitly; do not use a `-latest` alias |
+| `OLLAMA_BASE_URL` | Optional | Default `http://localhost:11434` — fully local chat |
+| `OLLAMA_MODEL` | Optional | Default `llama3.2` |
+| `BIND_HOST` | Optional | Default `127.0.0.1` (SEC-11). Changing this is an explicit opt-in |
+| `LIVE_MAX_SESSIONS` | Optional | Default 3 (FR-75) |
+| `LIVE_IDLE_TIMEOUT_MS` | Optional | Default 15 min (FR-75) |
+| `LIVE_DETACH_GRACE_MS` | Optional | Default 60 s — survives a dashboard reload (FR-74) |
+| `LIVE_SCREENCAST_QUALITY` | Optional | JPEG quality, default 60 |
+| `LIVE_VIEWPORT_WIDTH` / `_HEIGHT` | Optional | Default 1280 × 800 |
+| `LIVE_URL_ALLOWLIST` | Optional | Comma-separated host globs. Empty = any http(s) host (SEC-10) |
 
 ### 8.3 GitHub Actions Secrets
 
@@ -407,10 +556,21 @@ results/
     "diff_percentage": 0.0-100.0
   },
   "jira_ticket": "QA-247 (optional)",
+  "jira_url": "https://your-org.atlassian.net/browse/QA-247 (optional)",
   "github_issue": "https://... (optional)",
+  "expectations": {
+    "expected": ["the navigation bar was intentionally moved into the header"],
+    "unexpected": ["the sidebar width must not change"],
+    "ignore": ["the timestamp in the footer"],
+    "summary": "Header redesign expected; sidebar width must hold",
+    "raw": "the user's original words, verbatim"
+  },
   "created_at": "ISO 8601 timestamp"
 }
 ```
+
+`jira_url` (FR-41) and `expectations` (FR-60) are both **optional**; records written before v1.1 will
+not carry them, and consumers MUST tolerate their absence.
 
 ### 10.3 Storage Notes
 
@@ -418,6 +578,14 @@ results/
 - For production, consider migrating to **PostgreSQL** or **SQLite**
 - Screenshot files should be cleaned up after 30 days (add a cron job)
 - Max upload size per screenshot: **10 MB**
+- **v1.1:** live-mode run ids are derived from the session id as `{session_id}-c{n}`, so every capture
+  in a session gets its own storage key (FR-70) while remaining grouped by prefix on disk. All run
+  ids — uploaded or live — MUST satisfy `/^[A-Za-z0-9_-]{1,128}$/`, since they are interpolated into
+  filesystem paths.
+- **v1.1:** live captures bypass the 10 MB multipart limit because they are written directly to
+  `uploads/{run_id}/` by the capture service rather than being uploaded. Full-page screenshots of a
+  real application routinely exceed 10 MB, which is why the live path does not re-enter the HTTP
+  endpoint.
 
 ---
 
@@ -434,10 +602,59 @@ results/
 | SEC-07 | File uploads MUST be capped at 10 MB per file |
 | SEC-08 | CORS MUST be restricted to the frontend origin only |
 | SEC-09 | Screenshot files MUST NOT be publicly accessible via predictable URLs |
+| SEC-10 | Live-mode navigation targets MUST be validated against a scheme allowlist (`http:`/`https:` only) and a cloud-metadata IP denylist, on session creation, on user navigation, and on in-page navigation |
+| SEC-11 | The backend MUST bind to loopback (`127.0.0.1`) by default; binding to any other interface MUST be an explicit opt-in |
+| SEC-12 | User-supplied expectation text MUST be delimited and length-capped before injection into any model prompt |
+| SEC-13 | Expectation rules MUST NOT be able to suppress a detected change, only influence its classification |
+
+### 11.1 Notes on the v1.1 security requirements
+
+**SEC-11 is the highest-value item in this section.** The backend currently calls `app.listen(PORT)`,
+which binds `0.0.0.0`. On its own that is a modest exposure; combined with live mode — where the
+server drives a real browser to user-supplied URLs — it would let anyone on the same network drive a
+browser running on the engineer's machine. Loopback binding closes this.
+
+**SEC-10 is about scheme abuse, not classic SSRF.** A blanket private-IP block would break the
+feature, because reaching internal staging hosts is the *legitimate* use case; RFC1918 addresses are
+therefore deliberately allowed. The real exposures are non-HTTP schemes — `file:///…/backend/.env` in
+a pane's URL bar would render the server's API keys into an image and stream them to the client,
+defeating SEC-01 entirely — and cloud metadata endpoints (`169.254.169.254`,
+`metadata.google.internal`). An optional host allowlist (`LIVE_URL_ALLOWLIST`) is available for
+deployments that want to tighten this further.
+
+**SEC-05 remains satisfied** under v1.1. The chat endpoint receives its own dedicated rate limit
+rather than raising the global one, so a conversation cannot exhaust the budget that protects
+`/api/compare` and the Gemini free tier. Socket.IO traffic is served from `/socket.io/` and is
+governed by the session cap and idle reaper (FR-75) rather than by the HTTP limiter.
 
 ---
 
 ## 12. Test Plan
+
+> **The detailed, executable test plan is `documentation/TEST_PLAN.md`.** This section defines the
+> minimum bar; that document defines how it is proven, including the traceability matrix mapping every
+> requirement id to the test that covers it.
+
+**Status as of 15 August 2026:** the suite specified in §12.1 and §12.2 **exists and passes** —
+`backend/jest.config.js` (ts-jest + supertest), with `backend/src/test/setupEnv.ts` forcing
+`VISION_PROVIDER=mock` and blanking every API key so the suite is hermetic.
+
+```
+Test Suites: 5 passed, 5 total
+Tests:       34 passed, 34 total
+```
+
+Run it with `npm test` at the repository root.
+
+**v1.1 additions to this bar** (detailed in `TEST_PLAN.md`):
+
+| Area | Minimum coverage |
+|---|---|
+| Chatbot | `buildClassificationPrompt()` with and without rules · rule extraction · `validateExpectationRules` hardening (FR-62) · `POST /api/chat` validation · backwards compatibility of `/api/compare` without an `expectations` field |
+| **FR-56 specifically** | An A/B probe proving an expected change is reclassified **and still reported**. A run that returns "no significant change" is a defect, not a pass |
+| Live mode | URL guard (SEC-10) · session id and run id format (FR-70) · session cap and idle reaper (FR-75) · screencast coordinate translation · `runComparison()` storage layout |
+| Live probe | Both panes stream concurrently · input provably reaches the renderer · capture produces a non-zero diff and the §10.1 layout on disk |
+| Regression | `POST /api/compare` behaves identically after `runComparison()` is extracted |
 
 ### 12.1 Unit Tests
 
@@ -477,6 +694,30 @@ results/
 - [ ] GitHub Actions workflow triggers on PR open
 - [ ] CI fails when a critical bug is detected
 - [ ] PR comment appears with correct bug count
+
+### 12.5 Manual Acceptance Criteria — v1.1
+
+**Expectation chatbot**
+- [ ] Typing an expectation returns extracted rules, shown for confirmation before use (FR-54)
+- [ ] A wrongly extracted rule can be removed without retyping the whole instruction
+- [ ] Rules are visible on the result card afterwards (FR-61)
+- [ ] A comparison with no chat input behaves exactly as it did in v1.0
+- [ ] **An expected change is still reported, not hidden (FR-56)**
+
+**Live comparison**
+- [ ] Two URLs open as interactive panes inside the dashboard (FR-63)
+- [ ] Typing reaches only the focused pane, and which pane has focus is visually obvious (FR-64)
+- [ ] Scrolling a pane does not scroll the dashboard behind it
+- [ ] The panes navigate independently (FR-65)
+- [ ] Logging into both as different users does not cross-contaminate; reloading one keeps its own
+      session (FR-66)
+- [ ] One click captures both and produces a result card (FR-68, FR-69)
+- [ ] A second capture does not overwrite the first (FR-70)
+- [ ] Reloading the dashboard reattaches to the live session, still authenticated (FR-74)
+- [ ] A `confirm()` dialog appears as a modal instead of being silently dismissed (FR-72)
+- [ ] An SSO pop-up is adopted into the pane and login completes (FR-73)
+- [ ] `file:///…/backend/.env` typed into a URL bar is rejected (SEC-10)
+- [ ] The backend is unreachable from another machine on the network (SEC-11)
 
 ---
 
@@ -547,6 +788,50 @@ results/
 
 ---
 
+### Phase 5 — Expectation Chatbot (v1.1)
+
+Spec: `CHATBOT_IMPLEMENTATION_PLAN.md`. Ordered so each step leaves the tree typechecking.
+
+| Task | Owner | Est. Days |
+|------|-------|-----------|
+| Types in both packages; shared model-JSON extraction helper | Dev | 0.5 |
+| `textProvider.ts` (mock first) + `chatPrompt.ts` | Dev | 1 |
+| `POST /api/chat` + dedicated rate limit | Dev | 0.5 |
+| `buildClassificationPrompt()` refactor + call-time env fix | Dev | 0.5 |
+| Thread through provider → classification → compare route; **backwards-compat regression** | Dev | 0.5 |
+| Groq and Ollama providers | Dev | 0.5 |
+| Frontend: `ExpectationChat`, form and result-card wiring | Dev | 1.5 |
+| Unit tests + expectations A/B probe | Dev | 1 |
+| **Phase 5 Review & UAT** | QA | 0.5 |
+
+**Phase 5 Deliverable:** the AI takes stated intent into account, without ever hiding a change.
+
+---
+
+### Phase 6 — Live Two-Environment Comparison (v1.1)
+
+Spec: `documentation/WEB_APP_REGRESSION_PLAN.md`. The riskiest item — real-environment SSO login —
+is validated early rather than at the end.
+
+| Task | Owner | Est. Days |
+|------|-------|-----------|
+| Extract `runComparison()` + `dynamicMask.ts`; **regression-test `/api/compare`** | Dev | 1 |
+| `http.Server` + Socket.IO wiring; loopback binding; shutdown handlers | Dev | 0.5 |
+| Protocol types; `urlGuard.ts` + tests (SEC-10) | Dev | 0.5 |
+| `browserPool` · `pane` · `sessionManager` · `socket` — navigation and screencast | Dev | 2 |
+| Frontend read-only panes: socket, session hook, canvas frame renderer | Dev | 1.5 |
+| Input forwarding: CDP dispatch + coordinate mapping + tests | Dev | 1.5 |
+| Capture-and-compare flow end to end | Dev | 1 |
+| Dialogs, SSO pop-up adoption, basic auth (FR-71–FR-73) | Dev | 1 |
+| Toolbar, capture bar, size-mismatch warning, docs | Dev | 1 |
+| Live probe + manual UAT incl. **real staging login** | QA | 1 |
+| **Phase 6 Review** | All | 0.5 |
+
+**Phase 6 Deliverable:** navigate two live environments to any authenticated page and compare them in
+one click.
+
+---
+
 ### Total Estimated Effort
 
 | Phase | Duration | Effort |
@@ -555,7 +840,10 @@ results/
 | Phase 2 — Integrations | Week 3 | ~5.5 days |
 | Phase 3 — CI/CD | Week 4 | ~4.5 days |
 | Phase 4 — Polish | Week 5 | ~5 days |
-| **Total** | **5 weeks** | **~24 person-days** |
+| **v1.0 subtotal** | **5 weeks** | **~24 person-days** |
+| Phase 5 — Expectation Chatbot | Week 6 | ~6.5 days |
+| Phase 6 — Live Comparison | Week 7–9 | ~11.5 days |
+| **v1.1 total** | **~9 weeks** | **~42 person-days** |
 
 ---
 
@@ -564,12 +852,18 @@ results/
 | # | Risk | Probability | Impact | Mitigation |
 |---|------|-------------|--------|-----------|
 | R-01 | Gemini free tier rate limit hit in large test suite | Medium | High | Add delay between requests; batch runs off-peak; upgrade to paid tier if needed |
-| R-02 | AI misclassifies intentional changes as bugs | Medium | Medium | Tune the prompt with project-specific context; add feedback loop for QA to correct classifications |
-| R-03 | Playwright fails to capture pages behind auth | High | High | Implement cookie/session injection in capture config; add auth flow support |
+| R-02 | AI misclassifies intentional changes as bugs | Medium | Medium | **Addressed in v1.1 by §3.8 (FR-52–FR-62):** the QA engineer states expected changes per comparison and they are injected into the classification prompt, replacing the global env-var-only mitigation |
+| R-03 | Playwright fails to capture pages behind auth | High | High | **Addressed in v1.1 by §3.9 (FR-63–FR-73):** the engineer logs in manually in a live pane, so no credential injection or scripted auth flow is required |
 | R-04 | Jira API token expires silently | Low | Medium | Add integration health check endpoint; alert when token is invalid |
 | R-05 | Screenshot sizes differ between environments | High | Low | Auto-resize normalization already built in via Jimp |
 | R-06 | CI pipeline too slow (>10 min) for large page sets | Medium | Medium | Run page captures in parallel; limit CI run to smoke pages only |
 | R-07 | Sensitive UI data captured in screenshots | Low | High | Ensure screenshots are stored securely; not committed to Git; artifacts auto-expire after 30 days |
+| R-08 | Expectation rules are used to silence real regressions, whether deliberately or by imprecise wording | Medium | **High** | FR-56 / SEC-13: rules bias classification but never suppress a finding; the model is instructed to report every change and to lower confidence when evidence contradicts the stated intent. Rules are persisted per run (FR-60) and displayed on the result (FR-61) so any verdict can be audited |
+| R-09 | Live mode turns the backend into a browser driven to arbitrary URLs (SSRF-adjacent) | Medium | High | SEC-10 / SEC-11: loopback binding by default, scheme allowlist, cloud-metadata denylist, optional host allowlist. RFC1918 stays reachable deliberately — internal staging is the use case |
+| R-10 | Chat traffic exhausts the Gemini free tier and blocks classification | Medium | Medium | FR-57: a separate chat provider with its own credentials and quota, plus a dedicated rate limit for `/api/chat` rather than raising the global one |
+| R-11 | Live full-page captures of long SPA pages are truncated or oversized | Medium | Medium | Pre-check page height and offer viewport-only capture; expose a full-page toggle. Chromium truncates silently past its texture limit, so this is detected rather than discovered later |
+| R-12 | Before/after captures at different scroll heights inflate the diff percentage | High | Low | Known: `normalizeImageSize` stretches rather than pads. Live mode returns both natural sizes and warns when they differ materially. Changing the normalization strategy is a product decision — it alters diff semantics for every historical run |
+| R-13 | Long-lived headless browsers leak memory or orphan processes on Windows | Medium | Medium | FR-75 session cap and idle reaper; explicit shutdown handlers; documented cleanup command in `RUNNING.md` |
 
 ---
 
@@ -585,6 +879,31 @@ A feature or milestone is considered **Done** when all of the following are true
 - [ ] README updated if setup steps changed
 - [ ] Feature works end-to-end in a fresh clone environment
 - [ ] CI pipeline passes on a test PR
+
+### v1.1 additions to the Definition of Done
+
+- [ ] Every new requirement id is cited in the code that implements it, per the convention already
+      used across this codebase
+- [ ] A **probe test** exercising the feature end-to-end has been run, and its **actual output is
+      recorded** — a claim of success without the output that demonstrates it does not count
+- [ ] Anything that failed, was skipped, or could not be verified is reported as such, explicitly.
+      Reporting a partially-verified feature as done is a defect in its own right
+- [ ] The work is committed on a feature branch — never directly on `main` — and raised as a pull
+      request
+- [ ] `npm run typecheck` passes for all three packages
+- [ ] No secrets committed; `backend/.env` remains gitignored (SEC-01 / SEC-02)
+
+---
+
+## 16. Related Documents
+
+| Document | Purpose |
+|---|---|
+| `CHATBOT_IMPLEMENTATION_PLAN.md` (repo root) | Implementation spec for §3.8 (FR-52–FR-62) |
+| `documentation/WEB_APP_REGRESSION_PLAN.md` | Implementation spec for §3.9 (FR-63–FR-75) |
+| `documentation/TEST_PLAN.md` | Executable test plan and requirement traceability matrix |
+| `documentation/RUNNING.md` | How to run the tool locally |
+| `CLAUDE.md` (repo root) | Engineering context, conventions, and the list of bugs already fixed here |
 
 ---
 

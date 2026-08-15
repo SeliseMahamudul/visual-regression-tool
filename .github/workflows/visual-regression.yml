@@ -120,6 +120,8 @@ jobs:
             const fs = require('fs');
             let summaryContent = '## 🖼️ Visual Regression Results\n\n';
 
+            // FR-34: the comment must list pages tested, bugs found, and links
+            // to any issues auto-filed for them — not just a pass/fail count.
             try {
               const summary = JSON.parse(fs.readFileSync('./screenshots/summary.json', 'utf8'));
               const { total, bugs } = summary.summary;
@@ -127,6 +129,29 @@ jobs:
               const icon = bugs === 0 ? '✅' : '⚠️';
 
               summaryContent += `${icon} **${passed}/${total}** pages passed visual regression check.\n\n`;
+
+              const results = summary.results || [];
+              const flagged = results.filter((r) => {
+                const c = r?.result?.classification?.classification;
+                return c === 'BUG' || c === 'NEEDS_REVIEW';
+              });
+
+              if (flagged.length > 0) {
+                summaryContent += '| Page | Component | Severity | Classification | Issue |\n';
+                summaryContent += '|------|-----------|----------|-----------------|-------|\n';
+                for (const r of flagged) {
+                  const c = r.result.classification;
+                  const page = r.result.page_name || r.page_name || 'Unknown';
+                  const jira = r.result.jira_ticket
+                    ? (r.result.jira_url ? `[${r.result.jira_ticket}](${r.result.jira_url})` : r.result.jira_ticket)
+                    : null;
+                  const github = r.result.github_issue ? `[GitHub](${r.result.github_issue})` : null;
+                  const issueLinks = [jira, github].filter(Boolean).join(', ') || 'N/A';
+                  summaryContent += `| ${page} | ${c.component} | \`${c.severity}\` | \`${c.classification}\` | ${issueLinks} |\n`;
+                }
+                summaryContent += '\n';
+              }
+
               summaryContent += `📎 [Download Screenshots](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n`;
             } catch (e) {
               summaryContent += '❌ Could not read test summary. Check the action logs.\n';

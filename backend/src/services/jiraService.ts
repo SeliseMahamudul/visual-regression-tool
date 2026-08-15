@@ -34,7 +34,8 @@ function jiraClient() {
   });
 }
 
-function severityToPriority(severity: string): string {
+// Exported for jiraService.test.ts (REQUIREMENTS §12.1).
+export function severityToPriority(severity: string): string {
   const map: Record<string, string> = {
     critical: 'Highest',
     medium: 'Medium',
@@ -126,6 +127,13 @@ export async function createJiraIssue(
   ]);
 
   return issueKey;
+}
+
+// FR-41: the backend knows JIRA_BASE_URL; the frontend doesn't, so ResultCard
+// can't construct a working ticket link without this.
+export function jiraIssueUrl(issueKey: string): string | undefined {
+  const baseUrl = process.env.JIRA_BASE_URL;
+  return baseUrl ? `${baseUrl.replace(/\/$/, '')}/browse/${issueKey}` : undefined;
 }
 
 async function attachFilesToJira(

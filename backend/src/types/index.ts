@@ -37,6 +37,7 @@ export interface TestResult {
   diff_screenshot: string;
   classification: AIClassification;
   jira_ticket?: string;
+  jira_url?: string;
   github_issue?: string;
   created_at: string;
 }

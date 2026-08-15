@@ -19,7 +19,8 @@ function githubClient() {
   });
 }
 
-function severityToLabel(severity: string): string[] {
+// Exported for githubService.test.ts (REQUIREMENTS §12.1).
+export function severityToLabel(severity: string): string[] {
   const base = ['visual-regression', 'automated-qa'];
   const severityLabels: Record<string, string> = {
     critical: 'priority: critical',

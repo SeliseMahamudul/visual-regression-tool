@@ -48,11 +48,16 @@ app.get('/health', (_req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Visual Regression Backend running on http://localhost:${PORT}`);
-  console.log(`📊 Gemini AI: ${process.env.GEMINI_API_KEY ? '✅ Configured' : '❌ Missing GEMINI_API_KEY'}`);
-  console.log(`🔗 Jira:      ${process.env.JIRA_API_TOKEN ? '✅ Configured' : '⚠️  Not configured'}`);
-  console.log(`🐙 GitHub:    ${process.env.GITHUB_TOKEN ? '✅ Configured' : '⚠️  Not configured'}`);
-});
+// Guarded so integration tests can `import app` (via supertest) without also
+// binding a real port — mirrors the require.main pattern already used in
+// playwright-service/src/capture.ts.
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Visual Regression Backend running on http://localhost:${PORT}`);
+    console.log(`📊 Gemini AI: ${process.env.GEMINI_API_KEY ? '✅ Configured' : '❌ Missing GEMINI_API_KEY'}`);
+    console.log(`🔗 Jira:      ${process.env.JIRA_API_TOKEN ? '✅ Configured' : '⚠️  Not configured'}`);
+    console.log(`🐙 GitHub:    ${process.env.GITHUB_TOKEN ? '✅ Configured' : '⚠️  Not configured'}`);
+  });
+}
 
 export default app;

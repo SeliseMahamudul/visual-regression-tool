@@ -115,53 +115,90 @@ export async function runCapture(config: CaptureConfig): Promise<void> {
     for (const pageConfig of config.pages) {
       console.log(`\n▶ Processing: ${pageConfig.name}`);
 
-      const context = await browser.newContext({
-        viewport: pageConfig.viewport || config.default_viewport || { width: 1280, height: 800 },
-        deviceScaleFactor: 1,
-      });
+      // NFR-07: one bad page must not abort every remaining page. Each
+      // iteration is isolated so a timeout/selector-miss/network error on
+      // page 2 of 5 still lets pages 3-5 run and be reported.
+      try {
+        // FR-08: staging pages behind basic auth. Playwright's httpCredentials
+        // is the hook — config.auth was declared but never read before this.
+        const context = await browser.newContext({
+          viewport: pageConfig.viewport || config.default_viewport || { width: 1280, height: 800 },
+          deviceScaleFactor: 1,
+          httpCredentials:
+            config.auth?.username && config.auth?.password
+              ? { username: config.auth.username, password: config.auth.password }
+              : undefined,
+        });
 
-      const page = await context.newPage();
-      const safeName = pageConfig.name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+        if (config.auth?.login_url) {
+          const loginPage = await context.newPage();
+          await loginPage.goto(config.auth.login_url, { waitUntil: 'networkidle', timeout: 30000 });
+          if (config.auth.login_selector) {
+            await loginPage.waitForSelector(config.auth.login_selector, { timeout: 10000 });
+          }
+          await loginPage.close();
+        }
 
-      const beforePath = path.join(config.output_dir, `${safeName}_before.png`);
-      const afterPath = path.join(config.output_dir, `${safeName}_after.png`);
+        const page = await context.newPage();
+        const safeName = pageConfig.name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
 
-      // Capture BEFORE
-      await captureScreenshot(
-        page,
-        `${config.base_url_before}${pageConfig.path}`,
-        beforePath,
-        pageConfig
-      );
+        const beforePath = path.join(config.output_dir, `${safeName}_before.png`);
+        const afterPath = path.join(config.output_dir, `${safeName}_after.png`);
 
-      // Capture AFTER
-      await captureScreenshot(
-        page,
-        `${config.base_url_after}${pageConfig.path}`,
-        afterPath,
-        pageConfig
-      );
+        // Capture BEFORE
+        await captureScreenshot(
+          page,
+          `${config.base_url_before}${pageConfig.path}`,
+          beforePath,
+          pageConfig
+        );
 
-      await context.close();
+        // Capture AFTER
+        await captureScreenshot(
+          page,
+          `${config.base_url_after}${pageConfig.path}`,
+          afterPath,
+          pageConfig
+        );
 
-      // Submit for AI analysis
-      console.log(`  🤖 Submitting to AI for analysis...`);
-      const result = await submitForAnalysis(beforePath, afterPath, config, pageConfig.name);
-      results.push(result);
+        await context.close();
 
-      const { classification } = result.result;
-      const icon =
-        classification.classification === 'BUG'
-          ? '🐛'
-          : classification.classification === 'NEEDS_REVIEW'
-          ? '⚠️'
-          : '✅';
-      console.log(
-        `  ${icon} ${classification.classification} [${classification.severity}] — ${classification.component}`
-      );
-      console.log(`     ${classification.explanation}`);
-      if (result.result.jira_ticket) console.log(`  🎫 Jira: ${result.result.jira_ticket}`);
-      if (result.result.github_issue) console.log(`  🐙 GitHub: ${result.result.github_issue}`);
+        // Submit for AI analysis
+        console.log(`  🤖 Submitting to AI for analysis...`);
+        const result = await submitForAnalysis(beforePath, afterPath, config, pageConfig.name);
+        results.push(result);
+
+        const { classification } = result.result;
+        const icon =
+          classification.classification === 'BUG'
+            ? '🐛'
+            : classification.classification === 'NEEDS_REVIEW'
+            ? '⚠️'
+            : '✅';
+        console.log(
+          `  ${icon} ${classification.classification} [${classification.severity}] — ${classification.component}`
+        );
+        console.log(`     ${classification.explanation}`);
+        if (result.result.jira_ticket) console.log(`  🎫 Jira: ${result.result.jira_ticket}`);
+        if (result.result.github_issue) console.log(`  🐙 GitHub: ${result.result.github_issue}`);
+      } catch (err: any) {
+        console.error(`  ❌ Failed to process "${pageConfig.name}": ${err.message}`);
+        results.push({
+          page_name: pageConfig.name,
+          error: err.message,
+          result: {
+            classification: {
+              classification: 'NEEDS_REVIEW',
+              severity: 'none',
+              component: pageConfig.name,
+              explanation: `Capture/analysis failed: ${err.message}`,
+              recommended_action: 'Re-run this page manually; it was skipped by the batch capture.',
+              confidence: 0,
+              diff_percentage: 0,
+            },
+          },
+        });
+      }
     }
   } finally {
     await browser.close();

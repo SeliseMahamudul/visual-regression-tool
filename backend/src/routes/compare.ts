@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { generatePixelDiff } from '../services/pixelDiff';
 import { classifyWithGemini } from '../services/aiClassification';
-import { createJiraIssue } from '../services/jiraService';
+import { createJiraIssue, jiraIssueUrl } from '../services/jiraService';
 import { createGitHubIssue } from '../services/githubService';
 import { TestResult, AIClassification } from '../types';
 
@@ -140,6 +140,7 @@ router.post(
               afterPath
             );
             result.jira_ticket = jiraKey;
+            result.jira_url = jiraIssueUrl(jiraKey);
             console.log(`[${runId}] Jira issue created: ${jiraKey}`);
           } catch (err) {
             console.error(`[${runId}] Jira error:`, err);

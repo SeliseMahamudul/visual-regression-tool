@@ -44,7 +44,9 @@ export const ResultCard: React.FC<Props> = ({ result }) => {
           {/* Jira / GitHub links */}
           {result.jira_ticket && (
             <a
-              href="#"
+              href={result.jira_url || '#'}
+              target={result.jira_url ? '_blank' : undefined}
+              rel={result.jira_url ? 'noopener noreferrer' : undefined}
               onClick={(e) => e.stopPropagation()}
               className="text-xs bg-blue-900/50 text-blue-300 border border-blue-700 px-2 py-1 rounded flex items-center gap-1 hover:bg-blue-900"
             >

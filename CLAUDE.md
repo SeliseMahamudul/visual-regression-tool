@@ -128,28 +128,28 @@ breaks the dashboard's images.
 
 ## Known gaps against the spec
 
-Be aware these are *not* done, so don't assume they work:
+Resolved (2026-08-15) by a probe-test → compare-against-REQUIREMENTS.md → fix loop:
+test suite now exists (`backend/jest.config.js` + `*.test.ts` next to each service, 34 tests,
+`npm test` at root runs it); `severityToPriority`/`severityToLabel` are exported; FR-08 basic auth
+is wired via Playwright's `httpCredentials` (see `playwright-service/src/capture.ts`); NFR-07
+per-page try/catch means one bad page no longer kills the run — it's recorded as a `NEEDS_REVIEW`
+entry instead; the dashboard's "AI Ready" badge now calls `getIntegrationStatus()`; Jira links use
+a real `jira_url` the backend builds from `JIRA_BASE_URL` (`jiraService.ts#jiraIssueUrl`) instead of
+`href="#"`; the CI PR comment now includes a per-page table with Jira/GitHub issue links (FR-34) —
+previously `commentOnPR()` in `githubService.ts` built this but nothing ever called it; the junk
+`{frontend/...}` directory at the repo root is gone.
 
-- **No test suite exists.** REQUIREMENTS §12 specifies unit tests for `generatePixelDiff`,
-  `classifyWithGemini`, `severityToPriority`, and `severityToLabel`, plus integration tests.
-  `backend/package.json` has a `test` script wired to jest, but there is no jest config, no
-  `ts-jest`, and no test files. The Definition of Done requires these.
-- **`severityToPriority` and `severityToLabel` are not exported**, so they aren't testable as-is.
-- **HTTP basic auth for staging (FR-08) is unimplemented.** `CaptureConfig.auth` is declared in
-  `playwright-service/src/capture.ts` but never read. Playwright's `httpCredentials` is the hook.
-- **A page capture failure aborts the whole run (NFR-07).** The loop in `runCapture` has no
-  per-page try/catch, so one bad page kills every remaining page.
-- **The dashboard's "AI Ready" badge is hardcoded** (FR-44). `getIntegrationStatus()` exists in
-  `frontend/src/api/client.ts` and the endpoint works, but nothing calls it.
-- **Jira ticket links in `ResultCard.tsx` are `href="#"`** (FR-41). The backend returns the ticket
-  key but no base URL, so the link can't be constructed client-side yet.
+Be aware these are still *not* done:
+
 - **Image normalization stretches rather than pads.** When before/after differ in size,
   `normalizeImageSize` resizes to the max dimensions, distorting content and inflating the diff
   percentage. REQUIREMENTS FR-13 says "auto-resize", so this matches the letter of the spec, but
   padding would produce far more meaningful diffs for full-page screenshots of differing height.
-- **There is a junk directory at the repo root** literally named
-  `{frontend/src/{components,...},backend/...}` — an unexpanded `mkdir -p` brace pattern created by
-  a shell without brace expansion. It's empty and safe to delete.
+  Left as-is: fixing it changes diff-percentage semantics for every existing run, which is a product
+  decision, not a bug fix.
+- **FR-45 (run history page) and FR-09 (mobile viewport presets) are Could-Have and unimplemented.**
+  Per-page `viewport` overrides already exist in `CaptureConfig`, so FR-09 is achievable via config
+  today without new code.
 
 ---
 

@@ -10,6 +10,10 @@
   "github_repo": "your-repo",
   "pr_number": "123",
   "default_viewport": { "width": 1280, "height": 800 },
+  "auth": {
+    "username": "staging-user",
+    "password": "staging-password"
+  },
   "pages": [
     {
       "name": "Home Page",
