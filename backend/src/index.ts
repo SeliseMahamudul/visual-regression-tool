@@ -10,6 +10,7 @@ import rateLimit from 'express-rate-limit';
 import { Server } from 'socket.io';
 
 import compareRouter from './routes/compare';
+import chatRouter from './routes/chat';
 import screenshotsRouter from './routes/screenshots';
 import integrationsRouter from './routes/integrations';
 import { attachLiveNamespace, liveSessions } from './live/socket';
@@ -33,15 +34,32 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // Rate limiting. Mounted on /api/ only; Socket.IO lives at /socket.io/, so live
 // traffic bypasses this entirely — which is correct (§5). If a live REST
 // endpoint is ever added it must be mounted OUTSIDE /api/ or skip loopback.
+//
+// FR-52: chat is chattier than the upload flow the global limiter was sized
+// for. The global bucket is 100 requests / 15 min shared across EVERY /api/
+// endpoint — including each GET /api/screenshots/:runId/:type, three per result
+// card. A chat panel spending that same budget would lock the user out of
+// /api/compare mid-session. Give it a dedicated bucket, mounted BEFORE the
+// global limiter so /api/chat never touches the shared one. SEC-05 still holds:
+// every route remains rate limited, just not from one pool. Do NOT instead
+// raise the global max — that weakens the limit protecting the Gemini free tier.
+app.use('/api/chat', rateLimit({ windowMs: 60 * 1000, max: 20 }));
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
   message: { error: 'Too many requests, please try again later' },
+  // Mounting the chat limiter first is not enough on its own: '/api/' also
+  // matches '/api/chat', so a chat request would be counted against BOTH
+  // buckets and still drain the shared one. Skipping it here is what actually
+  // gives chat its own budget.
+  skip: (req) => req.path.startsWith('/chat'),
 });
 app.use('/api/', limiter);
 
 // Routes
 app.use('/api/compare', compareRouter);
+app.use('/api/chat', chatRouter);
 app.use('/api/screenshots', screenshotsRouter);
 app.use('/api/integrations', integrationsRouter);
 

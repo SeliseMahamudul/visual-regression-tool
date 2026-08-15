@@ -93,6 +93,117 @@ describe('POST /api/compare (§12.2)', () => {
   });
 });
 
+describe('POST /api/compare with expectations (FR-60, FR-62)', () => {
+  const rules = {
+    expected: ['dark header'],
+    unexpected: ['sidebar width change'],
+    ignore: [],
+    summary: 's',
+    raw: 'r',
+  };
+
+  function storedResult(runId: string): Record<string, unknown> {
+    const dir = path.join(RESULTS_DIR, runId);
+    const file = fs.readdirSync(dir).find((f) => f.endsWith('.json')) as string;
+    return JSON.parse(fs.readFileSync(path.join(dir, file), 'utf-8'));
+  }
+
+  it('persists a valid expectations payload with the result JSON (FR-60)', async () => {
+    const res = await request(app)
+      .post('/api/compare')
+      .field('run_id', 'itest-exp-valid')
+      .field('page_name', 'Home Page')
+      .attach('before', pngBuffer(10, 10, [255, 255, 255]), 'before.png')
+      .attach('after', pngBuffer(10, 10, [255, 255, 255]), 'after.png')
+      .field('expectations', JSON.stringify(rules));
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.result.expectations).toEqual(rules);
+
+    // FR-60: it must be on disk, not merely echoed back in the response.
+    expect(storedResult('itest-exp-valid').expectations).toEqual(rules);
+  });
+
+  it('still succeeds when the expectations field is not JSON at all (FR-62)', async () => {
+    const res = await request(app)
+      .post('/api/compare')
+      .field('run_id', 'itest-exp-garbage')
+      .attach('before', pngBuffer(10, 10, [255, 255, 255]), 'before.png')
+      .attach('after', pngBuffer(10, 10, [0, 0, 0]), 'after.png')
+      .field('expectations', 'not-json-at-all');
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.result.classification).toBeDefined();
+    expect(res.body.result.expectations).toBeUndefined();
+  });
+
+  it('still succeeds when expectations is valid JSON of the wrong shape (FR-62)', async () => {
+    const res = await request(app)
+      .post('/api/compare')
+      .field('run_id', 'itest-exp-wrong-shape')
+      .attach('before', pngBuffer(10, 10, [255, 255, 255]), 'before.png')
+      .attach('after', pngBuffer(10, 10, [0, 0, 0]), 'after.png')
+      .field('expectations', JSON.stringify([1, 2, 3]));
+
+    expect(res.status).toBe(200);
+    expect(res.body.result.expectations).toBeUndefined();
+  });
+
+  it('normalises a hostile oversized payload rather than failing (FR-62, SEC-12)', async () => {
+    const res = await request(app)
+      .post('/api/compare')
+      .field('run_id', 'itest-exp-oversized')
+      .attach('before', pngBuffer(10, 10, [255, 255, 255]), 'before.png')
+      .attach('after', pngBuffer(10, 10, [0, 0, 0]), 'after.png')
+      .field(
+        'expectations',
+        JSON.stringify({
+          expected: Array.from({ length: 500 }, (_, i) => `c${i}`),
+          unexpected: ['z'.repeat(10000)],
+          ignore: 'not-an-array',
+          summary: 's',
+          raw: 'q'.repeat(10000),
+        })
+      );
+
+    expect(res.status).toBe(200);
+    const stored = storedResult('itest-exp-oversized') as {
+      expectations: { expected: string[]; unexpected: string[]; ignore: string[]; raw: string };
+    };
+    expect(stored.expectations.expected).toHaveLength(20);
+    expect(stored.expectations.unexpected[0]).toHaveLength(500);
+    expect(stored.expectations.ignore).toEqual([]);
+    expect(stored.expectations.raw).toHaveLength(4000);
+  });
+
+  it('omits the expectations key entirely when no field is sent (backwards compatibility)', async () => {
+    const res = await request(app)
+      .post('/api/compare')
+      .field('run_id', 'itest-exp-absent')
+      .field('page_name', 'Home Page')
+      .attach('before', pngBuffer(10, 10, [255, 255, 255]), 'before.png')
+      .attach('after', pngBuffer(10, 10, [255, 255, 255]), 'after.png');
+
+    expect(res.status).toBe(200);
+    // The response shape must be exactly what it was before this feature — an
+    // absent key, not `expectations: null` or an empty shell.
+    expect('expectations' in res.body.result).toBe(false);
+    expect('expectations' in storedResult('itest-exp-absent')).toBe(false);
+    expect(Object.keys(res.body.result).sort()).toEqual([
+      'after_screenshot',
+      'before_screenshot',
+      'classification',
+      'created_at',
+      'diff_screenshot',
+      'id',
+      'page_name',
+      'run_id',
+    ]);
+  });
+});
+
 describe('GET /api/integrations/status (§12.2)', () => {
   it('returns all integrations as false when nothing is configured', async () => {
     const prevGemini = process.env.GEMINI_API_KEY;

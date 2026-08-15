@@ -5,7 +5,7 @@ import { generatePixelDiff, DiffResult } from './pixelDiff';
 import { classifyWithGemini } from './aiClassification';
 import { createJiraIssue, jiraIssueUrl } from './jiraService';
 import { createGitHubIssue } from './githubService';
-import { TestResult } from '../types';
+import { ExpectationRules, TestResult } from '../types';
 
 /**
  * The comparison pipeline, extracted verbatim from routes/compare.ts so that
@@ -24,6 +24,8 @@ export interface ComparisonOptions {
   githubOwner?: string;
   githubRepo?: string;
   prNumber?: string;
+  /** FR-55/FR-60: rules for this comparison only, already validated. */
+  expectations?: ExpectationRules;
   onProgress?: (stage: ComparisonStage) => void;
 }
 
@@ -64,7 +66,8 @@ export async function runComparison(
     beforePath,
     afterPath,
     diffResult.diff_path,
-    diffResult.diff_percentage
+    diffResult.diff_percentage,
+    opts.expectations
   );
 
   const result: TestResult = {
@@ -76,6 +79,10 @@ export async function runComparison(
     diff_screenshot: diffResult.diff_path,
     classification,
     created_at: new Date().toISOString(),
+    // FR-60: persist the rules alongside the verdict. Six weeks later, "why was
+    // this marked INTENTIONAL_CHANGE?" has an answer on disk. Omitted entirely
+    // when absent so existing result JSON keeps its exact shape.
+    ...(opts.expectations ? { expectations: opts.expectations } : {}),
   };
 
   // Step 3: Auto-file bugs if enabled

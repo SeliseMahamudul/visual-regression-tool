@@ -48,6 +48,25 @@ The backend is where nearly all the logic lives:
 | `src/services/githubService.ts` | Creates issues, auto-creates labels, PR comments |
 | `src/services/comparisonRunner.ts` | `runComparison()` + `toApiUrls()` — the pipeline minus transport. **Both** `/api/compare` and live mode call it |
 | `src/services/dynamicMask.ts` | `DYNAMIC_MASK_CSS` + apply/remove (FR-04), shared with the live capture |
+| `src/routes/chat.ts` | `POST /api/chat` — free text in, `ExpectationRules` out (FR-52/FR-53) |
+| `src/services/textProvider.ts` | **The only file to touch to swap the CHAT model** (FR-57/FR-58). Also owns `validateExpectationRules()` |
+| `src/services/chatPrompt.ts` | The extraction prompt, isolated for tuning (NFR-14) |
+| `src/services/jsonFromModel.ts` | `extractJsonObject()` — fence-stripping shared by the vision and chat parsers |
+
+**There are two independent model providers, and that split is deliberate.**
+`visionProvider.ts` (`VISION_PROVIDER`, default `gemini`) does classification; `textProvider.ts`
+(`CHAT_PROVIDER`, default `mock`) does expectation extraction. They must never share a key or a
+quota: the Gemini free tier is 15 RPM / 1,500 RPD and chat is far chattier than the upload flow, so
+chat traffic on the vision key would starve the feature people actually depend on. The defaults
+differ for the same reason — a missing vision key is a real error worth surfacing, while chat is
+additive and a fresh clone with no `GROQ_API_KEY` must not throw. For the same reason `/api/chat`
+has its **own** rate-limit bucket in `index.ts` and is skipped by the global `/api/` limiter.
+
+The expectation rules the chatbot extracts are injected into the vision prompt by
+`buildClassificationPrompt(expectations)` for **that one comparison only** (FR-55), and persisted
+onto the result JSON for audit (FR-60). **They bias classification; they never suppress a finding**
+(FR-56/SEC-13) — the "still report and explain every change you see" block in `visionPrompt.ts` is
+that safety property, and `visionPrompt.test.ts` asserts it is present.
 
 Live mode (FR-63…FR-75) lives in `src/live/`, deliberately self-contained so it could be lifted
 into its own process later without changing the wire protocol:
@@ -104,6 +123,10 @@ These are real bugs that were found and fixed here. Don't reintroduce them.
 CommonJS hoists all `require`s above statements, so calling `dotenv.config()` inline would run
 *after* every service module body has already evaluated. That's why `env.ts` exists as its own
 module, and why services read `process.env` inside functions rather than at module top level.
+`visionPrompt.ts` had exactly this bug until the chatbot work: `PROJECT_CONTEXT` was read at module
+scope, so `VR_PROJECT_CONTEXT` was silently ignored on every run. It is now read inside
+`buildClassificationPrompt()`, and `visionPrompt.test.ts` sets the env var *after* import to keep it
+that way.
 
 **2. Never read `req.body` in a multer `destination`/`filename` callback.**
 Multer streams fields in the order the client wrote them. Both the dashboard and the Playwright
@@ -194,6 +217,15 @@ Be aware these are still *not* done:
   click-through: focus ring, per-pane typing, cookie isolation across a reload, F5 reattach) and
   §9 step 8 (a real staging/SSO login) still need a QA engineer. FR-72 (dialogs), FR-73 (SSO popup
   adoption), and FR-74 (reattach) are implemented but **only** covered by manual acceptance.
+- **The expectation chatbot's UI has never been clicked by a human.** The backend contract is
+  proven by `visionPrompt.test.ts` / `textProvider.test.ts` / `jsonFromModel.test.ts` /
+  `chat.test.ts` / the `compare.test.ts` extension, and the A/B effect on a real vision model by
+  `test/probe/expectations-probe.mjs`. TEST_PLAN §6 "Chatbot" (panel discoverability, deleting a
+  mis-extracted rule without retyping, FR-54 confirm-before-apply, FR-61 on the result card) still
+  needs a QA engineer.
+- **Rule extraction quality with `CHAT_PROVIDER=mock` is deliberately crude** — keyword clause
+  splitting, no model. It exists so the whole feature runs offline (FR-59). Set `CHAT_PROVIDER=groq`
+  or `ollama` for extraction anyone would actually trust.
 
 ---
 
@@ -210,6 +242,10 @@ Be aware these are still *not* done:
 - Live-mode probes need a running backend and the fixture servers; they are **not** jest tests:
   `node test/probe/live-probe.mjs` and `node test/probe/guardrails-probe.mjs`
   (both accept `BACKEND=http://127.0.0.1:PORT`).
+- `node test/probe/expectations-probe.mjs` is the chatbot A/B (TEST_PLAN §5.3). It needs a backend
+  started with `VISION_PROVIDER=gemini` and a real key — `mockProvider` is a pure function of
+  `diff_percentage` and ignores expectations, so it cannot prove the feature works. It generates its
+  own fixtures at runtime and also accepts `BACKEND=`.
 - `uploads/`, `results/`, and `screenshots/` are gitignored scratch space — delete them freely.
 - **Never commit `backend/.env`** (SEC-01/SEC-02). It's gitignored; keep it that way. Ensure the file
   ends with a newline, or appending a variable will silently corrupt the last value.
