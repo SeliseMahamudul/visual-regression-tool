@@ -1,0 +1,23 @@
+{
+  "name": "visual-regression-ai",
+  "version": "1.0.0",
+  "description": "AI-powered Visual Regression Testing Tool",
+  "private": true,
+  "workspaces": ["frontend", "backend", "playwright-service"],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:playwright": "cd playwright-service && npm run dev",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:frontend": "cd frontend && npm run build",
+    "build:backend": "cd backend && npm run build",
+    "test": "npm run test:backend",
+    "test:backend": "cd backend && npm test",
+    "typecheck": "cd backend && npx tsc --noEmit && cd ../frontend && npx tsc --noEmit && cd ../playwright-service && npx tsc --noEmit",
+    "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install && cd ../playwright-service && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

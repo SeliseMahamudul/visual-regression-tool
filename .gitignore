@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+uploads/
+results/
+screenshots/
+*.log
+.DS_Store
+
+# Editors
+.idea/
+.vscode/

@@ -1,0 +1,150 @@
+name: Visual Regression Tests
+
+on:
+  pull_request:
+    branches: [main, develop, staging]
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: visual-regression-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  BACKEND_URL: ${{ secrets.VR_BACKEND_URL || 'http://localhost:4000' }}
+
+jobs:
+  visual-regression:
+    name: 🖼️ Visual Regression Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ─── Setup ───────────────────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      # No lockfiles are committed, so `npm ci` cannot be used here.
+      - name: Install dependencies
+        run: |
+          cd playwright-service && npm install
+          cd ../backend && npm install
+
+      - name: Install Playwright browsers
+        run: |
+          cd playwright-service && npx playwright install chromium --with-deps
+
+      # ─── Start Backend ────────────────────────────────────────
+      # NOTE: .env is written from scratch, NOT copied from .env.example.
+      # dotenv keeps the FIRST occurrence of a duplicated key, so the
+      # placeholder values in .env.example would win over anything appended.
+      - name: Start Visual Regression Backend
+        run: |
+          cd backend
+          cat > .env << 'EOF'
+          PORT=4000
+          UPLOADS_DIR=./uploads
+          RESULTS_DIR=./results
+          EOF
+          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+          echo "JIRA_BASE_URL=${{ secrets.JIRA_BASE_URL }}" >> .env
+          echo "JIRA_EMAIL=${{ secrets.JIRA_EMAIL }}" >> .env
+          echo "JIRA_API_TOKEN=${{ secrets.JIRA_API_TOKEN }}" >> .env
+          echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> .env
+          npm run build
+          npm start &
+          curl --retry 10 --retry-delay 2 --retry-connrefused http://localhost:4000/health
+
+      # ─── Generate VR Config ───────────────────────────────────
+      - name: Generate VR Config
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_URL: ${{ secrets.APP_BASE_URL || 'https://staging.your-app.com' }}
+          PREVIEW_URL: ${{ secrets.APP_PREVIEW_URL || 'https://preview.your-app.com' }}
+        run: |
+          cat > vr-config.json << EOF
+          {
+            "base_url_before": "$BASE_URL",
+            "base_url_after": "$PREVIEW_URL",
+            "backend_url": "http://localhost:4000",
+            "run_id": "pr-$PR_NUMBER-${{ github.run_id }}",
+            "output_dir": "${{ github.workspace }}/screenshots",
+            "auto_file_bugs": true,
+            "jira_project_key": "${{ secrets.JIRA_PROJECT_KEY }}",
+            "github_owner": "${{ github.repository_owner }}",
+            "github_repo": "${{ github.event.repository.name }}",
+            "pr_number": "$PR_NUMBER",
+            "default_viewport": { "width": 1280, "height": 800 },
+            "pages": [
+              { "name": "Home Page", "path": "/", "wait_ms": 1000 },
+              { "name": "Login", "path": "/login", "wait_for_selector": "form" },
+              { "name": "Dashboard", "path": "/dashboard", "wait_ms": 1500 }
+            ]
+          }
+          EOF
+
+      # ─── Run Visual Regression ────────────────────────────────
+      # VR_CONFIG must be absolute: this step runs from playwright-service/,
+      # but the config was generated in the workspace root.
+      - name: Run Visual Regression Tests
+        id: vr_run
+        continue-on-error: true
+        env:
+          VR_CONFIG: ${{ github.workspace }}/vr-config.json
+        run: |
+          cd playwright-service
+          npm run capture
+
+      # ─── Upload Artifacts ─────────────────────────────────────
+      - name: Upload Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-regression-screenshots-${{ github.run_id }}
+          path: screenshots/
+          retention-days: 30
+
+      # ─── Post PR Comment ──────────────────────────────────────
+      - name: Post Summary to PR
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let summaryContent = '## 🖼️ Visual Regression Results\n\n';
+
+            try {
+              const summary = JSON.parse(fs.readFileSync('./screenshots/summary.json', 'utf8'));
+              const { total, bugs } = summary.summary;
+              const passed = total - bugs;
+              const icon = bugs === 0 ? '✅' : '⚠️';
+
+              summaryContent += `${icon} **${passed}/${total}** pages passed visual regression check.\n\n`;
+              summaryContent += `📎 [Download Screenshots](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n`;
+            } catch (e) {
+              summaryContent += '❌ Could not read test summary. Check the action logs.\n';
+            }
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summaryContent
+            });
+
+      # ─── Fail CI on critical regressions ─────────────────────
+      # `outcome` is recorded even when continue-on-error swallows the failure;
+      # the previous $GITHUB_OUTPUT capture never ran, because Actions uses
+      # `bash -e` and the step aborted the moment npm run capture exited 1.
+      - name: Check for Critical Regressions
+        if: steps.vr_run.outcome == 'failure'
+        run: |
+          echo "❌ Critical visual regressions detected. Failing CI."
+          exit 1

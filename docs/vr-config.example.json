@@ -1,0 +1,42 @@
+{
+  "base_url_before": "https://staging.your-app.com",
+  "base_url_after": "https://preview.your-app.com",
+  "backend_url": "http://localhost:4000",
+  "run_id": "pr-123-abc456",
+  "output_dir": "./screenshots",
+  "auto_file_bugs": true,
+  "jira_project_key": "QA",
+  "github_owner": "your-org",
+  "github_repo": "your-repo",
+  "pr_number": "123",
+  "default_viewport": { "width": 1280, "height": 800 },
+  "pages": [
+    {
+      "name": "Home Page",
+      "path": "/",
+      "wait_for_selector": "[data-testid='hero']",
+      "wait_ms": 500
+    },
+    {
+      "name": "Login Page",
+      "path": "/login",
+      "wait_for_selector": "form"
+    },
+    {
+      "name": "Dashboard",
+      "path": "/dashboard",
+      "wait_for_selector": "[data-testid='dashboard-content']",
+      "viewport": { "width": 1440, "height": 900 }
+    },
+    {
+      "name": "Product Listing",
+      "path": "/products",
+      "wait_ms": 1000
+    },
+    {
+      "name": "Checkout",
+      "path": "/checkout",
+      "wait_for_selector": ".checkout-form"
+    }
+  ]
+}
