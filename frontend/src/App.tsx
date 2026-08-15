@@ -1,17 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
-import { UploadForm } from './components/UploadForm';
+import { UploadMode } from './components/UploadMode';
 import { ResultCard } from './components/ResultCard';
+import { LiveCompare } from './components/live/LiveCompare';
 import { compareScreenshots, getIntegrationStatus } from './api/client';
 import { CompareFormData, TestResult } from './types';
-import { Eye, Github, Zap, ZapOff } from 'lucide-react';
+import { Eye, Github, Zap, ZapOff, Upload, MonitorPlay } from 'lucide-react';
 
 // Simple id shim — avoids pulling `uuid` in just for a client-side run id
 function generateId(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+type Mode = 'upload' | 'live';
+
 export default function App() {
+  const [mode, setMode] = useState<Mode>('upload');
   const [results, setResults] = useState<TestResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [aiReady, setAiReady] = useState<boolean | null>(null);
@@ -50,11 +54,33 @@ export default function App() {
     }
   };
 
+  // Live captures append to the SAME array and render through the existing,
+  // unmodified ResultCard (FR-69).
+  const handleLiveResult = useCallback((result: TestResult) => {
+    setResults((prev) => [result, ...prev]);
+  }, []);
+
   const bugCount = results.filter((r) => r.classification.classification === 'BUG').length;
   const reviewCount = results.filter((r) => r.classification.classification === 'NEEDS_REVIEW').length;
   const cleanCount = results.filter(
     (r) => r.classification.classification === 'INTENTIONAL_CHANGE' || r.classification.classification === 'DYNAMIC_CONTENT'
   ).length;
+
+  // Two 1280px panes do not fit in the upload view's 1152px container.
+  const containerWidth = mode === 'live' ? 'max-w-[1800px]' : 'max-w-6xl';
+
+  const modeButton = (value: Mode, label: string, Icon: typeof Upload) => (
+    <button
+      key={value}
+      onClick={() => setMode(value)}
+      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+        mode === value ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white'
+      }`}
+    >
+      <Icon size={13} />
+      {label}
+    </button>
+  );
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -67,7 +93,7 @@ export default function App() {
 
       {/* Header */}
       <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className={`${containerWidth} mx-auto px-6 py-4 flex items-center justify-between`}>
           <div className="flex items-center gap-3">
             <div className="bg-violet-600 rounded-lg p-2">
               <Eye size={20} className="text-white" />
@@ -77,7 +103,14 @@ export default function App() {
               <p className="text-xs text-slate-400">Powered by Gemini Flash · Playwright · Node.js</p>
             </div>
           </div>
+
           <div className="flex items-center gap-4">
+            {/* Mode switch. Two views do not justify a router (FR-63). */}
+            <div className="flex items-center gap-1 bg-slate-800/60 border border-slate-700 rounded-lg p-1">
+              {modeButton('upload', 'Upload', Upload)}
+              {modeButton('live', 'Compare Live', MonitorPlay)}
+            </div>
+
             <a
               href="https://github.com"
               target="_blank"
@@ -100,8 +133,8 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-8 space-y-8">
-        {/* Stats bar */}
+      <main className={`${containerWidth} mx-auto px-6 py-8 space-y-8`}>
+        {/* Stats bar — shared by both modes */}
         {results.length > 0 && (
           <div className="grid grid-cols-4 gap-4">
             {[
@@ -118,49 +151,35 @@ export default function App() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-          {/* Upload panel */}
-          <div className="lg:col-span-2">
-            <div className="sticky top-24 bg-slate-900/60 border border-slate-700 rounded-2xl p-6">
-              <h2 className="text-lg font-semibold text-white mb-1">Compare Screenshots</h2>
-              <p className="text-sm text-slate-400 mb-5">
-                Upload before & after screenshots. AI classifies changes and auto-files bugs.
-              </p>
-              <UploadForm onSubmit={handleCompare} loading={loading} />
-            </div>
-          </div>
-
-          {/* Results panel */}
-          <div className="lg:col-span-3 space-y-4">
-            {results.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed border-slate-700 rounded-2xl">
-                <Eye size={40} className="text-slate-600 mb-4" />
-                <p className="text-slate-400 font-medium">No comparisons yet</p>
-                <p className="text-sm text-slate-500 mt-1">Upload screenshots to get started</p>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between">
-                  <h2 className="font-semibold text-slate-200">
-                    Results <span className="text-slate-400 font-normal">({results.length})</span>
-                  </h2>
-                  <button
-                    onClick={() => setResults([])}
-                    className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
-                  >
-                    Clear all
-                  </button>
-                </div>
+        {mode === 'live' ? (
+          <>
+            <LiveCompare onResult={handleLiveResult} />
+            {results.length > 0 && (
+              <div className="space-y-4">
+                <ResultsHeader count={results.length} onClear={() => setResults([])} />
                 {results.map((result) => (
                   <ResultCard key={result.id} result={result} />
                 ))}
-              </>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+            <UploadMode onSubmit={handleCompare} loading={loading} hasResults={results.length > 0} />
+
+            {results.length > 0 && (
+              <div className="lg:col-span-3 space-y-4">
+                <ResultsHeader count={results.length} onClear={() => setResults([])} />
+                {results.map((result) => (
+                  <ResultCard key={result.id} result={result} />
+                ))}
+              </div>
             )}
           </div>
-        </div>
+        )}
 
         {/* How it works */}
-        {results.length === 0 && (
+        {results.length === 0 && mode === 'upload' && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4">
             {[
               { step: '01', title: 'Upload', desc: 'Drop before & after screenshots of any UI' },
@@ -177,6 +196,19 @@ export default function App() {
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+function ResultsHeader({ count, onClear }: { count: number; onClear: () => void }) {
+  return (
+    <div className="flex items-center justify-between">
+      <h2 className="font-semibold text-slate-200">
+        Results <span className="text-slate-400 font-normal">({count})</span>
+      </h2>
+      <button onClick={onClear} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
+        Clear all
+      </button>
     </div>
   );
 }

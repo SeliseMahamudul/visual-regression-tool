@@ -3,11 +3,7 @@ import multer from 'multer';
 import * as path from 'path';
 import * as fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
-import { generatePixelDiff } from '../services/pixelDiff';
-import { classifyWithGemini } from '../services/aiClassification';
-import { createJiraIssue, jiraIssueUrl } from '../services/jiraService';
-import { createGitHubIssue } from '../services/githubService';
-import { TestResult, AIClassification } from '../types';
+import { runComparison, toApiUrls } from '../services/comparisonRunner';
 
 const router = Router();
 
@@ -91,95 +87,22 @@ router.post(
       fs.renameSync(files.before[0].path, beforePath);
       fs.renameSync(files.after[0].path, afterPath);
 
-      const resultDir = path.join(RESULTS_DIR, runId);
-      if (!fs.existsSync(resultDir)) fs.mkdirSync(resultDir, { recursive: true });
-
-      // Step 1: Generate pixel diff
-      console.log(`[${runId}] Generating pixel diff...`);
-      const diffResult = await generatePixelDiff(beforePath, afterPath, resultDir, runId);
-
-      // Step 2: AI Classification
-      console.log(`[${runId}] Running AI classification...`);
-      const classification = await classifyWithGemini(
-        beforePath,
-        afterPath,
-        diffResult.diff_path,
-        diffResult.diff_percentage
-      );
-
-      const result: TestResult = {
-        id: uuidv4(),
-        run_id: runId,
-        page_name: pageName,
-        before_screenshot: beforePath,
-        after_screenshot: afterPath,
-        diff_screenshot: diffResult.diff_path,
-        classification,
-        created_at: new Date().toISOString(),
-      };
-
-      // Step 3: Auto-file bugs if enabled
-      const shouldFileBug =
-        autoFileBugs &&
-        (classification.classification === 'BUG' ||
-          (classification.classification === 'NEEDS_REVIEW' &&
-            classification.severity === 'critical'));
-
-      if (shouldFileBug) {
-        // File Jira issue
-        if (jiraProjectKey && process.env.JIRA_API_TOKEN) {
-          try {
-            console.log(`[${runId}] Filing Jira issue...`);
-            const jiraKey = await createJiraIssue(
-              jiraProjectKey,
-              pageName,
-              classification,
-              runId,
-              diffResult.diff_path,
-              beforePath,
-              afterPath
-            );
-            result.jira_ticket = jiraKey;
-            result.jira_url = jiraIssueUrl(jiraKey);
-            console.log(`[${runId}] Jira issue created: ${jiraKey}`);
-          } catch (err) {
-            console.error(`[${runId}] Jira error:`, err);
-          }
-        }
-
-        // File GitHub issue
-        if (githubOwner && githubRepo && process.env.GITHUB_TOKEN) {
-          try {
-            console.log(`[${runId}] Filing GitHub issue...`);
-            const issueUrl = await createGitHubIssue(
-              githubOwner,
-              githubRepo,
-              pageName,
-              classification,
-              runId,
-              prNumber
-            );
-            result.github_issue = issueUrl;
-            console.log(`[${runId}] GitHub issue created: ${issueUrl}`);
-          } catch (err) {
-            console.error(`[${runId}] GitHub error:`, err);
-          }
-        }
-      }
-
-      // Save result to disk
-      const resultFile = path.join(resultDir, `${result.id}.json`);
-      fs.writeFileSync(resultFile, JSON.stringify(result, null, 2));
+      // The pipeline itself lives in services/comparisonRunner.ts so live mode
+      // (backend/src/live) runs identical code without a loopback HTTP hop.
+      const { result } = await runComparison(beforePath, afterPath, {
+        runId,
+        pageName,
+        autoFileBugs,
+        jiraProjectKey,
+        githubOwner,
+        githubRepo,
+        prNumber,
+      });
 
       return res.json({
         success: true,
-        result: {
-          ...result,
-          // Replace local paths with API URLs for frontend
-          before_screenshot: `/api/screenshots/${runId}/before`,
-          after_screenshot: `/api/screenshots/${runId}/after`,
-          diff_screenshot: `/api/screenshots/${runId}/diff`,
-        },
+        // Replace local paths with API URLs for the frontend.
+        result: toApiUrls(result),
       });
     } catch (error: any) {
       console.error('Compare error:', error);

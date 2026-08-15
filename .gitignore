@@ -5,6 +5,11 @@ uploads/
 results/
 screenshots/
 *.log
+
+# Jest redirects UPLOADS_DIR/RESULTS_DIR here (backend/src/test/setupEnv.ts).
+# The .tmp- prefix keeps them out of the `uploads/`/`results/` rules above,
+# which is exactly why they need their own entry.
+backend/src/test/.tmp-*
 .DS_Store
 
 # Editors
