@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
-import { UploadForm } from './components/UploadForm';
+import { UploadMode } from './components/UploadMode';
 import { ResultCard } from './components/ResultCard';
+import { LiveCompare } from './components/live/LiveCompare';
 import { compareScreenshots, getIntegrationStatus } from './api/client';
 import { CompareFormData, TestResult } from './types';
 import { Search, Github, Zap, ZapOff, MonitorPlay, ArrowLeft } from 'lucide-react';
@@ -13,7 +14,10 @@ function generateId(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+type Mode = 'upload' | 'live';
+
 export default function App() {
+  const [mode, setMode] = useState<Mode>('upload');
   const [results, setResults] = useState<TestResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [aiReady, setAiReady] = useState<boolean | null>(null);
@@ -52,6 +56,12 @@ export default function App() {
       setLoading(false);
     }
   };
+
+  // Live captures append to the SAME array and render through the existing,
+  // unmodified ResultCard (FR-69).
+  const handleLiveResult = useCallback((result: TestResult) => {
+    setResults((prev) => [result, ...prev]);
+  }, []);
 
   const bugCount = results.filter((r) => r.classification.classification === 'BUG').length;
   const reviewCount = results.filter((r) => r.classification.classification === 'NEEDS_REVIEW').length;
@@ -245,6 +255,19 @@ export default function App() {
           <span>Last updated: {new Date().toLocaleString()}</span>
         </div>
       </footer>
+    </div>
+  );
+}
+
+function ResultsHeader({ count, onClear }: { count: number; onClear: () => void }) {
+  return (
+    <div className="flex items-center justify-between">
+      <h2 className="font-semibold text-slate-200">
+        Results <span className="text-slate-400 font-normal">({count})</span>
+      </h2>
+      <button onClick={onClear} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
+        Clear all
+      </button>
     </div>
   );
 }

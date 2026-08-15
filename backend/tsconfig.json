@@ -2,7 +2,10 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "commonjs",
-    "lib": ["ES2020"],
+    // DOM is required because backend/src/live drives Playwright: page.evaluate
+    // callbacks run in the browser realm and reference document/Element/Node.
+    // playwright-service/tsconfig.json already does the same for the same reason.
+    "lib": ["ES2020", "DOM"],
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,

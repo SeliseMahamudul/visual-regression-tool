@@ -46,6 +46,21 @@ The backend is where nearly all the logic lives:
 | `src/services/retry.ts` | Exponential backoff + jitter (NFR-06) |
 | `src/services/jiraService.ts` | Creates tickets, attaches all three screenshots |
 | `src/services/githubService.ts` | Creates issues, auto-creates labels, PR comments |
+| `src/services/comparisonRunner.ts` | `runComparison()` + `toApiUrls()` — the pipeline minus transport. **Both** `/api/compare` and live mode call it |
+| `src/services/dynamicMask.ts` | `DYNAMIC_MASK_CSS` + apply/remove (FR-04), shared with the live capture |
+
+Live mode (FR-63…FR-75) lives in `src/live/`, deliberately self-contained so it could be lifted
+into its own process later without changing the wire protocol:
+
+| File | Responsibility |
+|------|----------------|
+| `src/live/browserPool.ts` | Lazy singleton Chromium. **`headless: true` is required, not a preference** — see gotcha #9 |
+| `src/live/pane.ts` | One pane: own `BrowserContext` (FR-66), CDP screencast, input, dialogs, popup adoption, capture |
+| `src/live/session.ts` | Two panes + `runCapture()` orchestration |
+| `src/live/sessionManager.ts` | Registry, `newSessionId()`/`deriveRunId()`, cap, idle reaper (FR-75) |
+| `src/live/input.ts` → `inputMap.ts` | Coordinate translation and modifier bitmask. **Never log a payload** — it is the user's password |
+| `src/live/urlGuard.ts` | `assertNavigable()` — scheme allowlist + metadata denylist (SEC-10) |
+| `src/live/socket.ts` | `/live` namespace, payload validation, error mapping |
 
 ---
 
@@ -122,7 +137,30 @@ return an empty or partial string on thinking models.
 
 **8. `run_id` is interpolated into filesystem paths.** Both `compare.ts` and `screenshots.ts` guard
 it with `/^[A-Za-z0-9_-]{1,128}$/`. Keep the two in sync — an id that can be stored but not served
-breaks the dashboard's images.
+breaks the dashboard's images. `sessionManager.ts` exports the same regex as `SAFE_ID`, because live
+run ids derive from session ids.
+
+**9. Headed Chromium does not composite non-foreground windows.** With two live panes streaming at
+once, one would simply freeze — and it looks exactly like a bug in the streaming code, not like a
+browser policy. `browserPool.ts` launches `headless: true` plus four `--disable-*` args. Never call
+`page.bringToFront()`: it starves the other pane. The live probe's assertion #2 exists solely to
+catch a regression here.
+
+**10. Frames emitted before the client joins its Socket.IO room are lost forever.** A static page
+composites once, on load; if that frame is dropped the pane sits blank until the user happens to
+interact with it, which reads as "live mode is broken". `socket.ts` joins the room *before*
+`session.open()`, and `LivePane.nudgeFrame()` forces a composite after every (re)attach.
+
+**11. Socket.IO does not await your handlers.** Handlers fire in receipt order but run concurrently,
+so a `text` payload could reach CDP before the `mousedown` that focuses the field it belongs to —
+the click looks fine and the typing lands nowhere. `LivePane.dispatchInput` serialises per pane
+through a promise chain.
+
+**12. `ws: true` on the Vite proxy is mandatory.** Without it the upgrade request 404s and Socket.IO
+silently falls back to long-polling, which works — badly, at maybe 3 fps.
+
+**13. `ts-node-dev --respawn` kills live sessions on every save.** For live-mode work run
+`cd backend && npm run build && npm start` instead of `npm run dev`.
 
 ---
 
@@ -150,6 +188,12 @@ Be aware these are still *not* done:
 - **FR-45 (run history page) and FR-09 (mobile viewport presets) are Could-Have and unimplemented.**
   Per-page `viewport` overrides already exist in `CaptureConfig`, so FR-09 is achievable via config
   today without new code.
+- **Live mode's UI interactions have never been verified by a human.** The socket protocol, capture
+  pipeline, guardrails, and frame delivery are proven headlessly by `test/probe/live-probe.mjs`
+  (10/10) and `test/probe/guardrails-probe.mjs` (6/6), but WEB_APP_REGRESSION_PLAN §9 step 6 (the
+  click-through: focus ring, per-pane typing, cookie isolation across a reload, F5 reattach) and
+  §9 step 8 (a real staging/SSO login) still need a QA engineer. FR-72 (dialogs), FR-73 (SSO popup
+  adoption), and FR-74 (reattach) are implemented but **only** covered by manual acceptance.
 
 ---
 
@@ -160,6 +204,12 @@ Be aware these are still *not* done:
   `npm run dev` uses ts-node-dev and reloads on its own.
 - On Windows, `pkill` won't stop the backend. Use:
   `Get-NetTCPConnection -LocalPort 4000 -State Listen | Select -Expand OwningProcess -Unique | ForEach { Stop-Process -Id $_ -Force }`
+  That force-kill skips the shutdown handlers, so it can orphan browsers. Playwright's process is
+  named **`chrome-headless-shell`**, not `chrome`:
+  `Get-Process | Where-Object { $_.Path -like '*ms-playwright*' } | Stop-Process -Force`
+- Live-mode probes need a running backend and the fixture servers; they are **not** jest tests:
+  `node test/probe/live-probe.mjs` and `node test/probe/guardrails-probe.mjs`
+  (both accept `BACKEND=http://127.0.0.1:PORT`).
 - `uploads/`, `results/`, and `screenshots/` are gitignored scratch space — delete them freely.
 - **Never commit `backend/.env`** (SEC-01/SEC-02). It's gitignored; keep it that way. Ensure the file
   ends with a newline, or appending a variable will silently corrupt the last value.

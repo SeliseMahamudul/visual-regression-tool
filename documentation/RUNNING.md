@@ -79,15 +79,17 @@ the Jira and GitHub integrations are entirely optional — the tool runs fully w
 > appending another variable to a file without one silently glues it onto the end of your key.
 > Second, write the value bare — no quotes, no spaces around the `=`.
 
-### Install the Chromium browser (only for automated capture)
+### Install the Chromium browser (needed for automated capture and for Live mode)
 
-Skip this if you only plan to upload screenshots by hand through the dashboard.
+Skip this only if you plan to upload screenshots by hand through the dashboard and never use
+**Compare Live**.
 
 ```bash
-cd playwright-service && npx playwright install chromium
+npx playwright install chromium
 ```
 
-This downloads roughly 150 MB the first time and takes a few minutes.
+This downloads roughly 150 MB the first time and takes a few minutes. One download serves both
+`playwright-service` and the backend's live mode — Playwright shares a browser cache per machine.
 
 ---
 
@@ -557,6 +559,79 @@ backend resets the counter.
 
 ### Capture fails on pages behind a login
 
-Full authentication support is not implemented. `wait_for_selector` handles async rendering but
-not sign-in flows. Point the tool at pages reachable without a session, or add cookie injection to
-`playwright-service/src/capture.ts`.
+For the **automated** pipeline, `wait_for_selector` handles async rendering but not sign-in flows.
+Set `auth.username`/`auth.password` in the config for HTTP basic auth, or use **Compare Live** and
+log in by hand.
+
+---
+
+## 10. Compare Live — two live environments side by side
+
+The workflow this exists for: *"Stage is my baseline. I just upgraded Angular on dev and it broke
+some alignment. I want to open both, log in, navigate to the page I care about, click one button,
+and see the regression."*
+
+### Using it
+
+1. Start the app normally (`npm run dev`) and open <http://localhost:5173>.
+2. Switch the header toggle from **Upload** to **Compare Live**.
+3. Enter the two URLs — *Reference / stage* and *Candidate / dev* — and click **Start live session**.
+   Both applications appear as interactive panes inside the dashboard.
+4. Click into a pane and use it with your own mouse and keyboard. The two panes are fully
+   independent: separate browser contexts, separate cookies, separate navigation. Log into each as a
+   different user if you want; neither affects the other.
+5. Bring both panes to the page you care about, type a page name, and click **Compare**. Both panes
+   are captured and run through the existing diff + AI classification pipeline; the result appears as
+   a normal result card below.
+
+Credentials you type go straight into the page over the socket. **Nothing is stored and nothing is
+logged.** If an environment uses HTTP *basic* auth, supply it in the start form instead — a basic-auth
+prompt is a native browser dialog and will never appear inside a pane.
+
+### Known limitations
+
+- Native `<select>` dropdowns, date pickers, autofill, and the OS context menu are widgets drawn
+  outside the page surface, so they do not render. Click the control, then use the arrow keys and
+  Enter — those are dispatched into the renderer and do work.
+- File inputs are out of scope for v1.
+- Expect a little input lag. This is a comparison tool, not a remote desktop.
+- Very tall full-page captures are refused above 12 000 px rather than silently truncated by
+  Chromium's texture limit. Use viewport-only capture for infinite-scroll pages.
+
+### Live-mode settings
+
+All optional; see `backend/.env.example`.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `LIVE_MAX_SESSIONS` | `3` | Concurrent session cap. Each session is two browser contexts, ~300–600 MB |
+| `LIVE_IDLE_TIMEOUT_MS` | `900000` | Idle sessions are reaped after 15 minutes |
+| `LIVE_DETACH_GRACE_MS` | `60000` | How long a session survives a dashboard reload |
+| `LIVE_SCREENCAST_QUALITY` | `60` | JPEG quality of the live stream. Does not affect the captured PNG |
+| `LIVE_VIEWPORT_WIDTH` / `_HEIGHT` | `1280` / `800` | Default pane viewport |
+| `LIVE_URL_ALLOWLIST` | *(empty)* | Comma-separated host globs, e.g. `*.stage.corp,localhost`. Empty allows any http(s) host |
+| `BIND_HOST` | `127.0.0.1` | **SEC-11.** The backend binds to loopback. Changing this exposes browser control to your network |
+
+### Live-mode troubleshooting
+
+**Sessions die every time you save a file.** `npm run dev` runs the backend under
+`ts-node-dev --respawn`, which restarts on every change to `src/` and takes your logged-in sessions
+with it. For live-mode work, run the compiled build instead:
+
+```bash
+cd backend && npm run build && npm start
+```
+
+**Panes render but at a few frames per second.** The Vite proxy is missing `ws: true`, so the
+WebSocket upgrade 404'd and Socket.IO fell back to long-polling. Check
+`frontend/vite.config.ts`.
+
+**Orphaned browser processes on Windows.** The `Stop-Process -Force` recipe skips the shutdown
+handlers. Playwright's process is called `chrome-headless-shell`, *not* `chrome`:
+
+```powershell
+Get-Process | Where-Object { $_.Path -like '*ms-playwright*' } | Stop-Process -Force
+```
+
+**`Could not launch Chromium for live mode`.** Run `npx playwright install chromium` from the repo
+root.
