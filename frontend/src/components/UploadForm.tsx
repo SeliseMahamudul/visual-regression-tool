@@ -19,9 +19,9 @@ const DropZone: React.FC<DropZoneProps> = ({ label, file, onDrop, onClear }) => 
 
   return (
     <div>
-      <p className="text-sm font-medium text-slate-300 mb-2">{label}</p>
+      <p className="text-sm font-medium text-slate-700 mb-2">{label}</p>
       {file ? (
-        <div className="relative rounded-lg border border-violet-500/50 bg-violet-900/10 overflow-hidden">
+        <div className="relative rounded-lg border border-blue-300 bg-blue-50 overflow-hidden">
           <img
             src={URL.createObjectURL(file)}
             alt={label}
@@ -29,12 +29,12 @@ const DropZone: React.FC<DropZoneProps> = ({ label, file, onDrop, onClear }) => 
           />
           <button
             onClick={onClear}
-            className="absolute top-2 right-2 bg-slate-900/80 rounded-full p-1 hover:bg-red-900 transition-colors"
+            className="absolute top-2 right-2 bg-white/90 rounded-full p-1 hover:bg-red-100 transition-colors shadow-sm"
           >
-            <X size={14} className="text-white" />
+            <X size={14} className="text-slate-700" />
           </button>
-          <div className="px-3 py-1.5 bg-slate-900/70">
-            <p className="text-xs text-slate-300 truncate">{file.name}</p>
+          <div className="px-3 py-1.5 bg-white/90">
+            <p className="text-xs text-slate-600 truncate">{file.name}</p>
           </div>
         </div>
       ) : (
@@ -42,14 +42,14 @@ const DropZone: React.FC<DropZoneProps> = ({ label, file, onDrop, onClear }) => 
           {...getRootProps()}
           className={`h-40 rounded-lg border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-colors ${
             isDragActive
-              ? 'border-violet-500 bg-violet-900/20'
-              : 'border-slate-600 hover:border-violet-500/70 bg-slate-800/40'
+              ? 'border-blue-900 bg-blue-50'
+              : 'border-slate-300 hover:border-blue-400 bg-slate-50'
           }`}
         >
           <input {...getInputProps()} />
-          <Upload size={24} className="text-slate-500 mb-2" />
-          <p className="text-sm text-slate-400">Drop screenshot here</p>
-          <p className="text-xs text-slate-500 mt-1">PNG, JPG, WebP</p>
+          <Upload size={24} className="text-slate-400 mb-2" />
+          <p className="text-sm text-slate-500">Drop screenshot here</p>
+          <p className="text-xs text-slate-400 mt-1">PNG, JPG, WebP</p>
         </div>
       )}
     </div>
@@ -84,7 +84,7 @@ export const UploadForm: React.FC<Props> = ({ onSubmit, loading }) => {
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* Page name */}
       <div>
-        <label className="block text-sm font-medium text-slate-300 mb-1.5">
+        <label className="block text-sm font-medium text-slate-700 mb-1.5">
           Page / Component Name
         </label>
         <input
@@ -92,7 +92,7 @@ export const UploadForm: React.FC<Props> = ({ onSubmit, loading }) => {
           placeholder="e.g. Home Page, Checkout Flow, Nav Bar"
           value={form.page_name}
           onChange={(e) => setForm({ ...form, page_name: e.target.value })}
-          className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-violet-500 text-sm"
+          className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2.5 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-900 text-sm"
         />
       </div>
 
@@ -117,20 +117,20 @@ export const UploadForm: React.FC<Props> = ({ onSubmit, loading }) => {
         <button
           type="button"
           onClick={() => setShowAdvanced(!showAdvanced)}
-          className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-200 transition-colors"
+          className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 transition-colors"
         >
           <Settings size={15} />
           {showAdvanced ? 'Hide' : 'Show'} Integration Settings
         </button>
 
         {showAdvanced && (
-          <div className="mt-3 p-4 bg-slate-800/50 rounded-lg border border-slate-700 space-y-4">
+          <div className="mt-3 p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-4">
             {/* Auto-file bugs toggle */}
             <label className="flex items-center gap-3 cursor-pointer">
               <div
                 onClick={() => setForm({ ...form, auto_file_bugs: !form.auto_file_bugs })}
                 className={`w-10 h-6 rounded-full transition-colors relative ${
-                  form.auto_file_bugs ? 'bg-violet-600' : 'bg-slate-600'
+                  form.auto_file_bugs ? 'bg-blue-900' : 'bg-slate-300'
                 }`}
               >
                 <div
@@ -139,40 +139,40 @@ export const UploadForm: React.FC<Props> = ({ onSubmit, loading }) => {
                   }`}
                 />
               </div>
-              <span className="text-sm text-slate-300">Auto-file bugs to Jira & GitHub</span>
+              <span className="text-sm text-slate-700">Auto-file bugs to Jira & GitHub</span>
             </label>
 
             {form.auto_file_bugs && (
               <div className="grid grid-cols-1 gap-3">
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Jira Project Key</label>
+                  <label className="block text-xs text-slate-500 mb-1">Jira Project Key</label>
                   <input
                     type="text"
                     placeholder="e.g. QA, PROJ"
                     value={form.jira_project_key}
                     onChange={(e) => setForm({ ...form, jira_project_key: e.target.value })}
-                    className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-violet-500"
+                    className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:border-blue-900"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1">GitHub Owner</label>
+                    <label className="block text-xs text-slate-500 mb-1">GitHub Owner</label>
                     <input
                       type="text"
                       placeholder="your-org"
                       value={form.github_owner}
                       onChange={(e) => setForm({ ...form, github_owner: e.target.value })}
-                      className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-violet-500"
+                      className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:border-blue-900"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1">GitHub Repo</label>
+                    <label className="block text-xs text-slate-500 mb-1">GitHub Repo</label>
                     <input
                       type="text"
                       placeholder="your-repo"
                       value={form.github_repo}
                       onChange={(e) => setForm({ ...form, github_repo: e.target.value })}
-                      className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-violet-500"
+                      className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:border-blue-900"
                     />
                   </div>
                 </div>
@@ -188,8 +188,8 @@ export const UploadForm: React.FC<Props> = ({ onSubmit, loading }) => {
         disabled={!canSubmit}
         className={`w-full py-3 rounded-lg font-semibold text-sm transition-all ${
           canSubmit
-            ? 'bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-900/30'
-            : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+            ? 'bg-blue-900 hover:bg-blue-800 text-white shadow-sm'
+            : 'bg-slate-200 text-slate-400 cursor-not-allowed'
         }`}
       >
         {loading ? (
