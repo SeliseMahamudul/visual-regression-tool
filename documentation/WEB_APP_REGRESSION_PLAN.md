@@ -42,7 +42,7 @@ feature claims **FR-63 … FR-75**. Amending `documentation/REQUIREMENTS.md` is 
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| FR-63 | The dashboard MUST accept two URLs and open both as live, interactive panes embedded in the dashboard | Must Have |
+| FR-63 | There should be another module named "Compare Live" in the top navigation bar. The the new module MUST accept two URLs and open both as live, interactive panes embedded in the dashboard | Must Have |
 | FR-64 | Each pane MUST forward the user's mouse, keyboard, and scroll input to its remote page | Must Have |
 | FR-65 | The two panes MUST navigate fully independently — no mirroring | Must Have |
 | FR-66 | The two panes MUST use isolated browser contexts so cookies and storage never leak between environments | Must Have |

@@ -223,7 +223,7 @@ and could not authenticate.
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| FR-63 | The dashboard MUST accept two URLs and open both as live, interactive panes embedded in the dashboard | Must Have |
+| FR-63 | There should be another module named "Compare Live" in the top navigation bar. The the new module MUST accept two URLs and open both as live, interactive panes embedded in the dashboard | Must Have |
 | FR-64 | Each pane MUST forward the user's mouse, keyboard, and scroll input to its remote page | Must Have |
 | FR-65 | The two panes MUST navigate fully independently — no mirroring of URLs or interactions | Must Have |
 | FR-66 | The two panes MUST use isolated browser contexts so cookies, storage, and sessions never leak between environments | Must Have |
