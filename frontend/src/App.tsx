@@ -5,7 +5,7 @@ import { ResultCard } from './components/ResultCard';
 import { LiveCompare } from './components/live/LiveCompare';
 import { compareScreenshots, getIntegrationStatus } from './api/client';
 import { CompareFormData, TestResult } from './types';
-import { Search, Github, Zap, ZapOff, MonitorPlay, ArrowLeft } from 'lucide-react';
+import { Search, Github, Zap, ZapOff, ArrowLeft } from 'lucide-react';
 
 type Tab = 'dashboard' | 'compare-live';
 
@@ -14,10 +14,7 @@ function generateId(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
-type Mode = 'upload' | 'live';
-
 export default function App() {
-  const [mode, setMode] = useState<Mode>('upload');
   const [results, setResults] = useState<TestResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [aiReady, setAiReady] = useState<boolean | null>(null);
@@ -185,36 +182,19 @@ export default function App() {
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-            {/* Upload panel */}
-            <div className="lg:col-span-2">
-              <div className="sticky top-24 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-                <h2 className="text-lg font-semibold text-slate-900 mb-1">Compare Screenshots</h2>
-                <p className="text-sm text-slate-500 mb-5">
-                  Upload before & after screenshots. AI classifies changes and auto-files bugs.
-                </p>
-                <UploadForm onSubmit={handleCompare} loading={loading} />
-              </div>
-            </div>
+            <UploadMode onSubmit={handleCompare} loading={loading} hasResults={results.length > 0} />
 
             {/* Results panel */}
-            <div className="lg:col-span-3 space-y-4">
-              {results.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed border-slate-300 rounded-2xl bg-white">
-                  <Search size={40} className="text-slate-300 mb-4" />
-                  <p className="text-slate-600 font-medium">No comparisons yet</p>
-                  <p className="text-sm text-slate-400 mt-1">Upload screenshots to get started</p>
-                </div>
-              ) : (
-                <>
-                  <h2 className="font-semibold text-slate-800">
-                    Results <span className="text-slate-400 font-normal">({results.length})</span>
-                  </h2>
-                  {results.map((result) => (
-                    <ResultCard key={result.id} result={result} />
-                  ))}
-                </>
-              )}
-            </div>
+            {results.length > 0 && (
+              <div className="lg:col-span-3 space-y-4">
+                <h2 className="font-semibold text-slate-800">
+                  Results <span className="text-slate-400 font-normal">({results.length})</span>
+                </h2>
+                {results.map((result) => (
+                  <ResultCard key={result.id} result={result} />
+                ))}
+              </div>
+            )}
           </div>
 
           {/* How it works */}
@@ -236,16 +216,8 @@ export default function App() {
           )}
         </main>
       ) : (
-        <main className="max-w-7xl mx-auto px-6 py-8">
-          <div className="flex flex-col items-center justify-center h-[50vh] border-2 border-dashed border-slate-300 rounded-2xl bg-white text-center px-6">
-            <MonitorPlay size={40} className="text-slate-300 mb-4" />
-            <h2 className="text-slate-900 font-semibold text-lg mb-1">Compare Live</h2>
-            <p className="text-slate-500 text-sm max-w-md">
-              Side-by-side live comparison of two environments (FR-63) is coming soon — enter two
-              URLs, interact with each independently, then capture and classify both panes with
-              the existing pipeline.
-            </p>
-          </div>
+        <main className="max-w-[1800px] mx-auto px-6 py-8">
+          <LiveCompare onResult={handleLiveResult} />
         </main>
       )}
 
@@ -255,19 +227,6 @@ export default function App() {
           <span>Last updated: {new Date().toLocaleString()}</span>
         </div>
       </footer>
-    </div>
-  );
-}
-
-function ResultsHeader({ count, onClear }: { count: number; onClear: () => void }) {
-  return (
-    <div className="flex items-center justify-between">
-      <h2 className="font-semibold text-slate-200">
-        Results <span className="text-slate-400 font-normal">({count})</span>
-      </h2>
-      <button onClick={onClear} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
-        Clear all
-      </button>
     </div>
   );
 }
