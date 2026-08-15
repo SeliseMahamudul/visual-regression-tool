@@ -149,7 +149,7 @@ export function LivePane(props: Props) {
   return (
     <div
       className={`rounded-xl overflow-hidden border transition-colors ${
-        focused ? 'border-violet-500' : 'border-slate-700'
+        focused ? 'border-blue-600' : 'border-slate-200'
       }`}
     >
       <PaneToolbar
@@ -165,7 +165,7 @@ export function LivePane(props: Props) {
           tabIndex={0}
           // A visible focus ring is essential UX, not polish: without it,
           // typing a password into the wrong pane is a routine mistake.
-          className="w-full h-auto block outline-none focus:ring-2 focus:ring-inset focus:ring-violet-500 cursor-none"
+          className="w-full h-auto block outline-none focus:ring-2 focus:ring-inset focus:ring-blue-600 cursor-none"
           style={{ aspectRatio: `${viewport.width} / ${viewport.height}` }}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
@@ -187,14 +187,14 @@ export function LivePane(props: Props) {
 
         {cursor && (
           <div
-            className="pointer-events-none absolute w-2.5 h-2.5 -ml-1 -mt-1 rounded-full bg-violet-400/80 ring-2 ring-white/40"
+            className="pointer-events-none absolute w-2.5 h-2.5 -ml-1 -mt-1 rounded-full bg-blue-500/80 ring-2 ring-white/40"
             style={{ left: cursor.x, top: cursor.y }}
           />
         )}
 
         {dimmed && (
           <div className="absolute inset-0 bg-slate-950/70 flex items-center justify-center">
-            <span className="text-sm text-slate-200 font-medium">Capturing…</span>
+            <span className="text-sm text-white font-medium">Capturing…</span>
           </div>
         )}
       </div>

@@ -37,25 +37,25 @@ export function CaptureBar({ capturing, stage, sizes, onCapture, onClose }: Prop
       : 0;
 
   const check = (label: string, value: boolean, set: (v: boolean) => void, title?: string) => (
-    <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer" title={title}>
+    <label className="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer" title={title}>
       <input
         type="checkbox"
         checked={value}
         onChange={(e) => set(e.target.checked)}
-        className="accent-violet-600"
+        className="accent-blue-900"
       />
       {label}
     </label>
   );
 
   return (
-    <div className="bg-slate-900/60 border border-slate-700 rounded-xl p-3 space-y-3">
+    <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-3 shadow-sm">
       <div className="flex flex-wrap items-center gap-3">
         <input
           value={pageName}
           onChange={(e) => setPageName(e.target.value)}
           placeholder="Page name (e.g. Checkout)"
-          className="flex-1 min-w-[200px] bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500"
+          className="flex-1 min-w-[200px] bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-900"
         />
         {check('Hide dynamic elements', hideDynamic, setHideDynamic, 'Hides timestamps, avatars and ads before capture (FR-04). Turn off if you specifically want to compare them.')}
         {check('Full page', fullPage, setFullPage, 'Captures beyond the viewport. Very tall pages are refused rather than silently truncated.')}
@@ -74,7 +74,7 @@ export function CaptureBar({ capturing, stage, sizes, onCapture, onClose }: Prop
             })
           }
           disabled={capturing}
-          className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:bg-slate-700 disabled:text-slate-400 text-white text-sm font-medium rounded-lg px-4 py-1.5 transition-colors"
+          className="flex items-center gap-2 bg-blue-900 hover:bg-blue-800 disabled:bg-slate-200 disabled:text-slate-400 text-white text-sm font-medium rounded-lg px-4 py-1.5 transition-colors shadow-sm"
         >
           {capturing ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
           Compare
@@ -82,7 +82,7 @@ export function CaptureBar({ capturing, stage, sizes, onCapture, onClose }: Prop
 
         <button
           onClick={onClose}
-          className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-red-400 transition-colors"
+          className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-red-600 transition-colors"
           title="Close the live session and release its browsers"
         >
           <Power size={14} /> End session
@@ -101,18 +101,18 @@ export function CaptureBar({ capturing, stage, sizes, onCapture, onClose }: Prop
               value={value as string}
               onChange={(e) => (set as (v: string) => void)(e.target.value)}
               placeholder={label as string}
-              className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+              className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-900"
             />
           ))}
         </div>
       )}
 
       {capturing && stage && (
-        <div className="text-xs text-violet-300">{STAGE_LABEL[stage]}</div>
+        <div className="text-xs text-blue-700">{STAGE_LABEL[stage]}</div>
       )}
 
       {mismatch > 0.02 && (
-        <div className="flex items-start gap-2 text-[11px] text-amber-300 bg-amber-950/40 border border-amber-900 rounded-lg px-3 py-2">
+        <div className="flex items-start gap-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
           <AlertTriangle size={13} className="mt-px shrink-0" />
           <span>
             The two captures differ in height by {(mismatch * 100).toFixed(1)}% (

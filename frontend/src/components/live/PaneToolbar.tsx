@@ -21,12 +21,12 @@ export function PaneToolbar({ state, label, bytesPerSecond, onNavigate, onHistor
   }, [state.url, editing]);
 
   const btn =
-    'p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors';
+    'p-1.5 rounded-md text-slate-400 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors';
 
   return (
-    <div className="border-b border-slate-700 bg-slate-900/80">
+    <div className="border-b border-slate-200 bg-slate-50">
       <div className="flex items-center gap-2 px-2 py-1.5">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 px-1.5">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 px-1.5">
           {label}
         </span>
         <button className={btn} disabled={!state.canGoBack} onClick={() => onHistory('back')} title="Back">
@@ -64,20 +64,20 @@ export function PaneToolbar({ state, label, bytesPerSecond, onNavigate, onHistor
             onFocus={() => setEditing(true)}
             onBlur={() => setEditing(false)}
             spellCheck={false}
-            className="w-full bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1 text-xs text-slate-200 font-mono focus:outline-none focus:ring-1 focus:ring-violet-500"
+            className="w-full bg-white border border-slate-300 rounded-md px-2.5 py-1 text-xs text-slate-900 font-mono focus:outline-none focus:ring-1 focus:ring-blue-900"
           />
         </form>
 
         {state.isPopup && (
           <span
-            className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-300 border border-amber-800"
+            className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200"
             title="A pop-up window opened by the page owns this pane (SSO). It reverts when the pop-up closes."
           >
             <ExternalLink size={10} /> popup
           </span>
         )}
         {state.loading && (
-          <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" title="Loading" />
+          <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" title="Loading" />
         )}
       </div>
 
@@ -89,7 +89,7 @@ export function PaneToolbar({ state, label, bytesPerSecond, onNavigate, onHistor
       </div>
 
       {state.lastError && (
-        <div className="px-3 pb-1.5 text-[10px] text-red-400 truncate">{state.lastError}</div>
+        <div className="px-3 pb-1.5 text-[10px] text-red-600 truncate">{state.lastError}</div>
       )}
     </div>
   );

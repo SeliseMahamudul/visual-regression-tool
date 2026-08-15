@@ -75,7 +75,7 @@ export function LiveCompare({ onResult }: Props) {
       <div className="flex items-start gap-2 text-[11px] text-slate-500">
         <AlertCircle size={13} className="mt-px shrink-0" />
         <span>
-          Session <code className="text-slate-400">{session.sessionId}</code> · idle deadline{' '}
+          Session <code className="text-slate-600">{session.sessionId}</code> · idle deadline{' '}
           {new Date(session.expiresAt).toLocaleTimeString()}. Panes use isolated browser contexts, so
           logging into one never touches the other&apos;s cookies (FR-66).
         </span>

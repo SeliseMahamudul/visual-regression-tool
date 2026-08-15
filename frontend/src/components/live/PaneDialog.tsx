@@ -21,15 +21,15 @@ export function PaneDialog({ dialog, onRespond }: Props) {
 
   return (
     <div className="absolute inset-0 z-20 flex items-start justify-center pt-16 bg-slate-950/70">
-      <div className="w-[420px] max-w-[90%] bg-slate-900 border border-slate-600 rounded-xl shadow-2xl p-5">
+      <div className="w-[420px] max-w-[90%] bg-white border border-slate-200 rounded-xl shadow-2xl p-5">
         <div className="flex items-center gap-2 mb-2">
-          <AlertTriangle size={16} className="text-amber-400" />
-          <span className="text-xs uppercase tracking-wide text-slate-400">
+          <AlertTriangle size={16} className="text-amber-500" />
+          <span className="text-xs uppercase tracking-wide text-slate-500">
             {dialog.type} · {dialog.pane === 'before' ? 'reference' : 'candidate'} pane
           </span>
         </div>
 
-        <p className="text-sm text-slate-200 whitespace-pre-wrap break-words mb-4">
+        <p className="text-sm text-slate-900 whitespace-pre-wrap break-words mb-4">
           {dialog.message || '(no message)'}
         </p>
 
@@ -41,7 +41,7 @@ export function PaneDialog({ dialog, onRespond }: Props) {
             onKeyDown={(e) => {
               if (e.key === 'Enter') onRespond(true, text);
             }}
-            className="w-full mb-4 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500"
+            className="w-full mb-4 bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-900"
           />
         )}
 
@@ -49,14 +49,14 @@ export function PaneDialog({ dialog, onRespond }: Props) {
           {dialog.type !== 'alert' && (
             <button
               onClick={() => onRespond(false)}
-              className="px-3 py-1.5 text-sm rounded-lg text-slate-300 hover:bg-slate-800 transition-colors"
+              className="px-3 py-1.5 text-sm rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
             >
               Cancel
             </button>
           )}
           <button
             onClick={() => onRespond(true, dialog.type === 'prompt' ? text : undefined)}
-            className="px-3 py-1.5 text-sm rounded-lg bg-violet-600 hover:bg-violet-500 text-white transition-colors"
+            className="px-3 py-1.5 text-sm rounded-lg bg-blue-900 hover:bg-blue-800 text-white transition-colors"
           >
             OK
           </button>

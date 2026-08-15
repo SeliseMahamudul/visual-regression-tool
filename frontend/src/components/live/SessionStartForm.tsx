@@ -23,7 +23,7 @@ export function SessionStartForm({ onStart, starting }: Props) {
   const [vp, setVp] = useState(0);
 
   const field =
-    'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500';
+    'w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-900';
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,16 +39,16 @@ export function SessionStartForm({ onStart, starting }: Props) {
   };
 
   return (
-    <form onSubmit={submit} className="bg-slate-900/60 border border-slate-700 rounded-2xl p-6 max-w-3xl mx-auto">
-      <h2 className="text-lg font-semibold text-white mb-1">Compare two live environments</h2>
-      <p className="text-sm text-slate-400 mb-5">
+    <form onSubmit={submit} className="bg-white border border-slate-200 rounded-2xl p-6 max-w-3xl mx-auto shadow-sm">
+      <h2 className="text-lg font-semibold text-slate-900 mb-1">Compare two live environments</h2>
+      <p className="text-sm text-slate-500 mb-5">
         Both applications open as interactive panes below. Log in and navigate each one yourself, then
         capture both at once. Credentials you type go straight into the page — nothing is stored.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs text-slate-400 mb-1.5">Reference / stage</label>
+          <label className="block text-xs text-slate-500 mb-1.5">Reference / stage</label>
           <input
             className={field}
             placeholder="https://stage.example.com"
@@ -58,7 +58,7 @@ export function SessionStartForm({ onStart, starting }: Props) {
           />
         </div>
         <div>
-          <label className="block text-xs text-slate-400 mb-1.5">Candidate / dev</label>
+          <label className="block text-xs text-slate-500 mb-1.5">Candidate / dev</label>
           <input
             className={field}
             placeholder="https://dev.example.com"
@@ -70,7 +70,7 @@ export function SessionStartForm({ onStart, starting }: Props) {
       </div>
 
       <div className="mt-4">
-        <label className="block text-xs text-slate-400 mb-1.5">Viewport</label>
+        <label className="block text-xs text-slate-500 mb-1.5">Viewport</label>
         <select
           className={field}
           value={vp}
@@ -87,7 +87,7 @@ export function SessionStartForm({ onStart, starting }: Props) {
       <button
         type="button"
         onClick={() => setShowAuth((s) => !s)}
-        className="mt-4 flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200"
+        className="mt-4 flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 transition-colors"
       >
         <Lock size={12} />
         HTTP basic auth (optional)
@@ -102,7 +102,7 @@ export function SessionStartForm({ onStart, starting }: Props) {
           {([['Reference / stage', authBefore, setAuthBefore], ['Candidate / dev', authAfter, setAuthAfter]] as const).map(
             ([label, value, set]) => (
               <div key={label} className="space-y-2">
-                <div className="text-xs text-slate-400">{label}</div>
+                <div className="text-xs text-slate-500">{label}</div>
                 <input
                   className={field}
                   placeholder="username"
@@ -127,7 +127,7 @@ export function SessionStartForm({ onStart, starting }: Props) {
       <button
         type="submit"
         disabled={starting || !urlBefore.trim() || !urlAfter.trim()}
-        className="mt-6 w-full flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:bg-slate-700 disabled:text-slate-400 text-white font-medium rounded-lg py-2.5 transition-colors"
+        className="mt-6 w-full flex items-center justify-center gap-2 bg-blue-900 hover:bg-blue-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-medium rounded-lg py-2.5 transition-colors shadow-sm"
       >
         {starting ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
         {starting ? 'Launching browsers…' : 'Start live session'}
