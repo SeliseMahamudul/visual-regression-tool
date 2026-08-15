@@ -1,10 +1,15 @@
 import { useState } from 'react';
 import { SessionCreateRequest } from '../../types/live';
+import { ExpectationRules } from '../../types';
+import { ExpectationChat } from '../ExpectationChat';
 import { Play, Lock, Loader2 } from 'lucide-react';
 
 interface Props {
   onStart: (req: SessionCreateRequest) => void;
   starting: boolean;
+  /** FR-55: session-level — set once here, applied to every capture until changed. */
+  expectations: ExpectationRules | undefined;
+  onExpectationsChange: (rules: ExpectationRules | undefined) => void;
 }
 
 const VIEWPORTS = [
@@ -14,7 +19,7 @@ const VIEWPORTS = [
 ];
 
 /** FR-63: two URLs in, two live interactive panes out. */
-export function SessionStartForm({ onStart, starting }: Props) {
+export function SessionStartForm({ onStart, starting, expectations, onExpectationsChange }: Props) {
   const [urlBefore, setUrlBefore] = useState('');
   const [urlAfter, setUrlAfter] = useState('');
   const [showAuth, setShowAuth] = useState(false);
@@ -82,6 +87,13 @@ export function SessionStartForm({ onStart, starting }: Props) {
             </option>
           ))}
         </select>
+      </div>
+
+      <div className="mt-4">
+        <ExpectationChat rules={expectations} onRulesChange={onExpectationsChange} disabled={starting} />
+        <p className="mt-1.5 text-[11px] text-slate-500">
+          Applies to every capture in this session, until you change or clear it.
+        </p>
       </div>
 
       <button

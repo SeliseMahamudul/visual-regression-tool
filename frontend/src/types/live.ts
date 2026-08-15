@@ -7,6 +7,8 @@
  * convention. Keep the two files in sync.
  */
 
+import { ExpectationRules } from './index';
+
 export type PaneSide = 'before' | 'after';
 
 export interface Viewport {
@@ -98,6 +100,8 @@ export interface CaptureRequest {
   github_owner?: string;
   github_repo?: string;
   pr_number?: string;
+  /** FR-55: session-level expectations (set once, applied to every capture). */
+  expectations?: ExpectationRules;
 }
 
 export type LiveErrorCode =

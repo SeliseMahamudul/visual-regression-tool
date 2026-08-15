@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageSquare, Send, X, Trash2, Check, Loader2 } from 'lucide-react';
+import { MessageSquare, Send, X, Trash2, Check, Loader2, Bot } from 'lucide-react';
 import { ChatMessage, ExpectationRules } from '../types';
 import { chat } from '../api/client';
 
@@ -161,7 +161,9 @@ export const ExpectationChat: React.FC<Props> = ({ rules, onRulesChange, disable
         disabled={disabled}
         className="flex w-full items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm transition-colors hover:border-blue-300 hover:bg-slate-50 disabled:opacity-50"
       >
-        <MessageSquare size={16} className="shrink-0 text-blue-900" />
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-50">
+          <Bot size={15} className="animate-bounce text-blue-900" />
+        </span>
         <span className="text-sm font-medium text-slate-900">
           Tell the AI what you expected to change
         </span>

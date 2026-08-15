@@ -186,6 +186,7 @@ export class LiveSession {
         githubOwner: req.github_owner,
         githubRepo: req.github_repo,
         prNumber: req.pr_number,
+        expectations: req.expectations,
         onProgress: (stage) => this.cb.onCaptureProgress(runId, stage),
       });
 

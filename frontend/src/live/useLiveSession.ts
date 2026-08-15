@@ -11,7 +11,7 @@ import {
   SessionCreateRequest,
   SessionState,
 } from '../types/live';
-import { TestResult } from '../types';
+import { ExpectationRules, TestResult } from '../types';
 
 export interface DialogRequest {
   pane: PaneSide;
@@ -38,6 +38,9 @@ export interface LiveSessionApi {
   error: LiveError | null;
   dialog: DialogRequest | null;
   sizes: Record<PaneSide, ImageSize> | null;
+  /** FR-55: set once for the session, applied to every capture until changed. */
+  expectations: ExpectationRules | undefined;
+  setExpectations: (rules: ExpectationRules | undefined) => void;
   start: (req: SessionCreateRequest) => Promise<void>;
   close: () => Promise<void>;
   navigate: (pane: PaneSide, url: string) => void;
@@ -56,6 +59,7 @@ export function useLiveSession(onResult: (r: TestResult) => void): LiveSessionAp
   const [error, setError] = useState<LiveError | null>(null);
   const [dialog, setDialog] = useState<DialogRequest | null>(null);
   const [sizes, setSizes] = useState<Record<PaneSide, ImageSize> | null>(null);
+  const [expectations, setExpectations] = useState<ExpectationRules | undefined>(undefined);
   const sessionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -76,6 +80,7 @@ export function useLiveSession(onResult: (r: TestResult) => void): LiveSessionAp
       sessionIdRef.current = null;
       sessionStorage.removeItem(SESSION_STORAGE_KEY);
       setSession(null);
+      setExpectations(undefined);
       if (reason !== 'user') {
         setError({ code: 'SESSION_NOT_FOUND', message: `Live session ended (${reason}).` });
       }
@@ -151,6 +156,7 @@ export function useLiveSession(onResult: (r: TestResult) => void): LiveSessionAp
     sessionIdRef.current = null;
     sessionStorage.removeItem(SESSION_STORAGE_KEY);
     setSession(null);
+    setExpectations(undefined);
   }, []);
 
   const navigate = useCallback((pane: PaneSide, url: string) => {
@@ -194,7 +200,7 @@ export function useLiveSession(onResult: (r: TestResult) => void): LiveSessionAp
         return await new Promise<TestResult | null>((resolve) => {
           getLiveSocket().emit(
             'capture:run',
-            { sessionId: id, ...opts },
+            { sessionId: id, ...opts, expectations },
             (err: LiveError | null, result?: TestResult) => {
               if (err || !result) {
                 setError(err ?? { code: 'CAPTURE_FAILED', message: 'Capture failed.' });
@@ -211,7 +217,7 @@ export function useLiveSession(onResult: (r: TestResult) => void): LiveSessionAp
         setStage(null);
       }
     },
-    [onResult]
+    [onResult, expectations]
   );
 
   // Size mismatch warning data (§6): two live panes rarely scroll to identical
@@ -233,6 +239,8 @@ export function useLiveSession(onResult: (r: TestResult) => void): LiveSessionAp
     error,
     dialog,
     sizes,
+    expectations,
+    setExpectations,
     start,
     close,
     navigate,

@@ -6,6 +6,7 @@ import { SessionStartForm } from './SessionStartForm';
 import { LivePane } from './LivePane';
 import { CaptureBar } from './CaptureBar';
 import { PaneDialog } from './PaneDialog';
+import { ExpectationChat } from '../ExpectationChat';
 import { AlertCircle } from 'lucide-react';
 
 interface Props {
@@ -29,13 +30,29 @@ export function LiveCompare({ onResult }: Props) {
   }, [live.error]);
 
   if (!live.session) {
-    return <SessionStartForm onStart={(req) => void live.start(req)} starting={live.starting} />;
+    return (
+      <SessionStartForm
+        onStart={(req) => void live.start(req)}
+        starting={live.starting}
+        expectations={live.expectations}
+        onExpectationsChange={live.setExpectations}
+      />
+    );
   }
 
   const { session } = live;
 
   return (
     <div className="space-y-4">
+      {/* FR-55: session-level — set before or during the session, applied to
+          every capture until changed. Editable here too since seeing both
+          pages live is often what tells the engineer what to expect. */}
+      <ExpectationChat
+        rules={live.expectations}
+        onRulesChange={live.setExpectations}
+        disabled={live.capturing}
+      />
+
       <CaptureBar
         capturing={live.capturing}
         stage={live.stage}

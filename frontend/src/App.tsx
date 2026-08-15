@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import { UploadMode } from './components/UploadMode';
 import { ResultCard } from './components/ResultCard';
+import { ResultsStats } from './components/ResultsStats';
 import { LiveCompare } from './components/live/LiveCompare';
 import { compareScreenshots, getIntegrationStatus } from './api/client';
 import { CompareFormData, TestResult } from './types';
@@ -164,21 +165,14 @@ export default function App() {
             </button>
           )}
 
-          {/* Stats bar */}
+          {/* Stats — a bar chart, not cards, so the UI doesn't look clickable when it isn't */}
           {results.length > 0 && (
-            <div className="grid grid-cols-4 gap-4">
-              {[
-                { label: 'Total Tested', value: results.length, color: 'text-slate-900' },
-                { label: 'Bugs Found', value: bugCount, color: 'text-red-600' },
-                { label: 'Needs Review', value: reviewCount, color: 'text-amber-600' },
-                { label: 'Clean', value: cleanCount, color: 'text-green-600' },
-              ].map((stat) => (
-                <div key={stat.label} className="bg-white border border-slate-200 rounded-xl p-4 text-center shadow-sm">
-                  <div className={`text-3xl font-bold ${stat.color}`}>{stat.value}</div>
-                  <div className="text-xs text-slate-500 mt-1">{stat.label}</div>
-                </div>
-              ))}
-            </div>
+            <ResultsStats
+              total={results.length}
+              bugCount={bugCount}
+              reviewCount={reviewCount}
+              cleanCount={cleanCount}
+            />
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">

@@ -18,6 +18,7 @@ import {
 } from './sessionManager';
 import { getBrowser, BrowserUnavailableError } from './browserPool';
 import { UrlRejectedError } from './urlGuard';
+import { validateExpectationRules } from '../services/textProvider';
 
 /** One registry for the process; /health and the shutdown hook both read it. */
 export const liveSessions = new SessionManager<LiveSession>();
@@ -136,6 +137,9 @@ function asCaptureRequest(v: unknown): CaptureRequest {
     github_owner: typeof v.github_owner === 'string' ? v.github_owner : undefined,
     github_repo: typeof v.github_repo === 'string' ? v.github_repo : undefined,
     pr_number: typeof v.pr_number === 'string' ? v.pr_number : undefined,
+    // FR-55/FR-62: malformed expectations degrade to "none", never fail the
+    // capture — same defensive posture as routes/compare.ts.
+    expectations: validateExpectationRules(v.expectations),
   };
 }
 
